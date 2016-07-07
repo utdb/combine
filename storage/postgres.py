@@ -2,7 +2,7 @@ import sys
 import configparser
 import psycopg2
 
-class postgresdb:
+class postgres:
 
     def __init__(self,conn):
         self.conn = conn
@@ -82,15 +82,18 @@ class postgresdb:
         except Exception as ex:
             handle_db_error("destroy",ex)
 
-    def add_activity(self,job,module):
+    def add_activity(self,job,module,triggerseq):
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO activity (createtime,job,module) VALUES (clock_timestamp(),%s,%s);",[job,module])
-            stat = "SELECT currval(pg_get_serial_sequence(\'activity\',\'id\'));"
+            stat = "select last_value from combine_global_id;"
             cur.execute(stat)
             rows = cur.fetchall()
+            id = rows[0][0]
+            for trigger in triggerseq:
+                cur.execute("INSERT INTO activity_trigger (activity_id,kind,tag) VALUES (%s,%s,%s);",[id,trigger[0],trigger[1]])
             self.conn.commit()
-            return rows[0][0]
+            return id
         except Exception as ex:
             handle_db_error("add_activity",ex)
 
@@ -98,7 +101,7 @@ class postgresdb:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO activation(createtime,activity_id) VALUES (clock_timestamp(),%s);",[activity_id])
-            stat = "SELECT currval(pg_get_serial_sequence(\'activation\',\'id\'));"
+            stat = "select last_value from combine_global_id;"
             cur.execute(stat)
             rows = cur.fetchall()
             self.conn.commit()
@@ -110,7 +113,7 @@ class postgresdb:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO objects (time,activity_id,kind,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s);",[activity_id,kind,content_type,content])
-            stat = "SELECT currval(pg_get_serial_sequence(\'objects\',\'id\'));"
+            stat = "select last_value from combine_global_id;"
             cur.execute(stat)
             rows = cur.fetchall()
             id = rows[0][0]
@@ -150,10 +153,10 @@ def opendb(configfile):
     config = configparser.RawConfigParser()
     config.read(configfile)
     try:
-        conn = psycopg2.connect("dbname='"+config.get("postgresdb", "db")+"' user='"+config.get("postgresdb", "user")+"' host='"+config.get("postgresdb", "host")+"' password='"+config.get("postgresdb", "password")+"'")
+        conn = psycopg2.connect("dbname='"+config.get("postgres", "db")+"' user='"+config.get("postgres", "user")+"' host='"+config.get("postgres", "host")+"' password='"+config.get("postgres", "password")+"'")
     except Exception as ex:
         handle_db_error("Unable to connect to postgres"+str(ex))
 
     # conn.cursor().execute("CREATE TABLE tab (dummy int);")
-    pdb = postgresdb(conn)
+    pdb = postgres(conn)
     return pdb
