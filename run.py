@@ -1,9 +1,11 @@
-import storage.initialize
+import storage
 
-db = storage.initialize.opendb("./combine.local.cfg")
-db.create()
-xxx = db.add_object("XXX")
-yyy = db.add_object("YYY")
-db.add_provenance(xxx,yyy)
+db = storage.opendb("./combine.local.cfg")
 db.destroy()
-
+db.create()
+aaa = db.add_activity(66,"A-MODULE")
+act = db.add_activation(aaa)
+xxx = db.add_object(act,"KIND","application/text","Hello")
+yyy = db.add_object(act,"KIND","application/text","Hello")
+db.set_activation_graph(act,(xxx,),(yyy,))
+db.add_log(act,"activation_finished","")
