@@ -6,10 +6,10 @@ db.destroy()
 db.create()
 
 jid   = db.add_job("myfirstjob","This is my first job")
-acopy = db.add_activity(jid,"copyjob",(["regular","tocopy"]))
+acopy = db.add_activity(jid,"copyjob",(["mykind",["tag1","tag2"]],))
 act = db.add_activation(acopy)
-o1 = db.add_object(act,"regular","application/text","Hello World 1")
-o2 = db.add_object(act,"regular","application/text","Hello World 2")
+o1 = db.add_object(act,"mykind",["tag1","tag2"],"application/text","Hello World 1")
+o2 = db.add_object(act,"mykind",["tag1","tag2"],"application/text","Hello World 2")
 db.set_activation_graph(act,(o1,),(o2,))
 db.add_log(act,"activation_finished","")
 #
@@ -23,5 +23,7 @@ print("j.name="+str(j.name()))
 o = db.get_object(o1)
 print("o.kind="+str(o.kind()))
 # o.activity()
+
+# <@ for subset
 
 j.start()

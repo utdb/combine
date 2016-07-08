@@ -28,9 +28,11 @@ class postgres:
                       time         TIMESTAMP,
                       avid         BIGINT,
                       kind         TEXT,
+                      tags         TEXT[],
                       content_type TEXT,
                       content      BYTEA
                   );
+                  CREATE INDEX idx_object_tags on object USING GIN ("tags");
                   CREATE TABLE activity (
 		      aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
@@ -40,7 +42,7 @@ class postgres:
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
                       kind      TEXT,
-                      tag       TEXT
+                      tags      TEXT[]
                   );
                   CREATE TABLE activation (
 		      avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
@@ -99,7 +101,6 @@ class postgres:
             handle_db_error("destroy",ex)
 
 
-
     def add_job(self,name,description):
         try:
             cur = self.conn.cursor()
@@ -118,7 +119,7 @@ class postgres:
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in triggerseq:
-                cur.execute("INSERT INTO activity_trigger (aid,kind,tag) VALUES (%s,%s,%s);",[aid,trigger[0],trigger[1]])
+                cur.execute("INSERT INTO activity_trigger (aid,kind,tags) VALUES (%s,%s,%s);",[aid,trigger[0],trigger[1]])
             self.conn.commit()
             return aid
         except Exception as ex:
@@ -135,10 +136,10 @@ class postgres:
         except Exception as ex:
             handle_db_error("add_activation",ex)
 
-    def add_object(self,avid,kind,content_type,content):
+    def add_object(self,avid,kind,tags,content_type,content):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time,avid,kind,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s);",[avid,kind,content_type,content])
+            cur.execute("INSERT INTO object (time,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s);",[avid,kind,tags,content_type,content])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             self.conn.commit()
