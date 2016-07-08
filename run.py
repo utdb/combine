@@ -18,6 +18,10 @@ engine.start("./combine.local.cfg",db)
 mod = __import__("modules.copy", fromlist=[''])
 mod.run_activation(db,(o1,o2))
 
+j = db.get_job(jid)
+print("j.name="+str(j.name()))
 o = db.get_object(o1)
 print("o.kind="+str(o.kind()))
 # o.activity()
+
+j.start()

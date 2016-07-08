@@ -56,11 +56,18 @@ class postgres:
                       oid   BIGINT
                   );
                   CREATE TABLE log (
+		      lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time      TIMESTAMP,
                       xid        BIGINT,
                       event     TEXT,
                       data      TEXT
                   );
+                  CREATE VIEW active_job AS
+                      SELECT * from job 
+                      WHERE (stoptime IS NULL) AND NOT (starttime IS NULL);
+                  CREATE VIEW active_activity AS
+                      SELECT activity.aid, activity.module FROM activity,active_job
+                      WHERE active_job.jid = activity.jid;
                """
             cur.execute(stat)
             self.conn.commit()
@@ -97,8 +104,7 @@ class postgres:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO job (name,description,createtime) VALUES (%s,%s,clock_timestamp());",[name,description])
-            stat = "select last_value from combine_global_id;"
-            cur.execute(stat)
+            cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.conn.commit()
             return jid
@@ -109,8 +115,7 @@ class postgres:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO activity (createtime,jid,module) VALUES (clock_timestamp(),%s,%s);",[jid,module])
-            stat = "select last_value from combine_global_id;"
-            cur.execute(stat)
+            cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in triggerseq:
                 cur.execute("INSERT INTO activity_trigger (aid,kind,tag) VALUES (%s,%s,%s);",[aid,trigger[0],trigger[1]])
@@ -123,8 +128,7 @@ class postgres:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO activation(createtime,aid) VALUES (clock_timestamp(),%s);",[aid])
-            stat = "select last_value from combine_global_id;"
-            cur.execute(stat)
+            cur.execute("select last_value from combine_global_id;")
             avid = singlevalue(cur)
             self.conn.commit()
             return avid
@@ -135,8 +139,7 @@ class postgres:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO object (time,avid,kind,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s);",[avid,kind,content_type,content])
-            stat = "select last_value from combine_global_id;"
-            cur.execute(stat)
+            cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             self.conn.commit()
             return oid
@@ -159,11 +162,17 @@ class postgres:
         try:
             cur = self.conn.cursor()
             cur.execute("INSERT INTO log (time,xid,event,data) VALUES (clock_timestamp(),%s,%s,%s);",[xid,event,data])
+            cur.execute("select last_value from combine_global_id;")
+            lid = singlevalue(cur)
+            return lid
         except Exception as ex:
             handle_db_error("add_log",ex)
 
     def get_object(self,oid):
         return PgObject(self,oid)
+
+    def get_job(self,jid):
+        return PgJob(self,jid)
 
 def singlevalue(cur):
     # TODO check if it is really a single value
@@ -174,17 +183,18 @@ def singlevalue(cur):
         raise Exception('postgres result not a single value')
 
 class PgWrapper:
-   def __init__(self,db,table,xid):
+   def __init__(self,db,table,idattr,idvalue):
        self.db = db
        self.table = table
-       self.xid = xid
+       self.idattr = idattr
+       self.idvalue = idvalue
 
    def __getattr__(self, name):
 
        def _try_retrieve(*args, **kwargs):
            try:
                cur = self.db.conn.cursor()
-               cur.execute("SELECT "+str(name)+" FROM "+self.table+" WHERE oid="+str(self.xid)+";")
+               cur.execute("SELECT "+name+" FROM "+self.table+" WHERE "+self.idattr+"="+str(self.idvalue)+";")
                return singlevalue(cur)
            except Exception as ex:
                handle_db_error("_try_retrieve",ex)
@@ -193,12 +203,22 @@ class PgWrapper:
 
 class PgObject(PgWrapper):
 
-   def __init__(self,db,xid):
-       super(PgObject, self).__init__(db,"object",xid)
-       self.contained = "xxx"
+   def __init__(self,db,idvalue):
+       super(PgObject, self).__init__(db,"object","oid",idvalue)
 
-   def activity(self):
-       print("activity_called")
+class PgJob(PgWrapper):
+
+   def __init__(self,db,idvalue):
+       super(PgJob, self).__init__(db,"job","jid",idvalue)
+
+   def start(self):
+       try:
+           cur = self.db.conn.cursor()
+           cur.execute("UPDATE "+self.table+" SET starttime=clock_timestamp(), stoptime=NULL WHERE "+self.idattr+"="+str(self.idvalue)+";")
+           self.db.conn.commit()
+       except Exception as ex:
+           handle_db_error("_try_retrieve",ex)
+        
 
 def handle_db_error(what, ex):
     print(what+": "+str(ex))
