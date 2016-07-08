@@ -14,42 +14,41 @@ class postgres:
             stat = """
                   CREATE SEQUENCE combine_global_id;
 
-                  CREATE TABLE objects (
-		      id BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                  CREATE TABLE object (
+		      oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time         TIMESTAMP,
-                      activity_id  BIGINT,
+                      avid         BIGINT,
                       kind         TEXT,
                       content_type TEXT,
-                      content      TEXT
-
+                      content      BYTEA
                   );
                   CREATE TABLE activity (
-		      id BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+		      aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
                       job        BIGINT,
                       module     TEXT
                   );
                   CREATE TABLE activity_trigger (
-                      activity_id       BIGINT,
-                      kind              TEXT,
-                      tag               TEXT
+                      aid       BIGINT,
+                      kind      TEXT,
+                      tag       TEXT
                   );
                   CREATE TABLE activation (
-		      id BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
-                      createtime        TIMESTAMP,
-                      activity_id       BIGINT
+		      avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      createtime  TIMESTAMP,
+                      aid         BIGINT
                   );
                   CREATE TABLE activation_in (
-		      activation_id BIGINT,
-                      in_id         BIGINT
+		      avid BIGINT,
+                      oid  BIGINT
                   );
                   CREATE TABLE activation_out (
-		      activation_id  BIGINT,
-                      out_id         BIGINT
+		      avid  BIGINT,
+                      oid   BIGINT
                   );
                   CREATE TABLE log (
                       time      TIMESTAMP,
-                      id        BIGINT,
+                      xid        BIGINT,
                       event     TEXT,
                       data      TEXT
                   );
@@ -67,7 +66,7 @@ class postgres:
             cur = self.conn.cursor()
             stat = """
                   DROP TABLE IF EXISTS actions    CASCADE;
-                  DROP TABLE IF EXISTS objects    CASCADE;
+                  DROP TABLE IF EXISTS object     CASCADE;
                   DROP TABLE IF EXISTS provenance CASCADE;
                   DROP TABLE IF EXISTS activity    CASCADE;
                   DROP TABLE IF EXISTS activity_trigger    CASCADE;
@@ -88,59 +87,94 @@ class postgres:
             cur.execute("INSERT INTO activity (createtime,job,module) VALUES (clock_timestamp(),%s,%s);",[job,module])
             stat = "select last_value from combine_global_id;"
             cur.execute(stat)
-            rows = cur.fetchall()
-            id = rows[0][0]
+            aid = singlevalue(cur)
             for trigger in triggerseq:
-                cur.execute("INSERT INTO activity_trigger (activity_id,kind,tag) VALUES (%s,%s,%s);",[id,trigger[0],trigger[1]])
+                cur.execute("INSERT INTO activity_trigger (aid,kind,tag) VALUES (%s,%s,%s);",[aid,trigger[0],trigger[1]])
             self.conn.commit()
-            return id
+            return aid
         except Exception as ex:
             handle_db_error("add_activity",ex)
 
-    def add_activation(self,activity_id):
+    def add_activation(self,aid):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activation(createtime,activity_id) VALUES (clock_timestamp(),%s);",[activity_id])
+            cur.execute("INSERT INTO activation(createtime,aid) VALUES (clock_timestamp(),%s);",[aid])
             stat = "select last_value from combine_global_id;"
             cur.execute(stat)
-            rows = cur.fetchall()
+            avid = singlevalue(cur)
             self.conn.commit()
-            return rows[0][0]
+            return avid
         except Exception as ex:
             handle_db_error("add_activation",ex)
 
-    def add_object(self,activity_id,kind,content_type,content):
+    def add_object(self,avid,kind,content_type,content):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO objects (time,activity_id,kind,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s);",[activity_id,kind,content_type,content])
+            cur.execute("INSERT INTO object (time,avid,kind,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s);",[avid,kind,content_type,content])
             stat = "select last_value from combine_global_id;"
             cur.execute(stat)
-            rows = cur.fetchall()
-            id = rows[0][0]
+            oid = singlevalue(cur)
             self.conn.commit()
-            return id
+            return oid
         except Exception as ex:
             handle_db_error("add_object",ex)
 
 
-    def set_activation_graph(self,activation_id,inseq,outseq):
+    def set_activation_graph(self,avid,inseq,outseq):
         try:
             cur = self.conn.cursor()
             for n in inseq:
-                cur.execute("INSERT INTO activation_in  (activation_id,in_id) VALUES (%s,%s);",[activation_id,n])
+                cur.execute("INSERT INTO activation_in  (avid,oid) VALUES (%s,%s);",[avid,n])
             for n in outseq:
-                cur.execute("INSERT INTO activation_out  (activation_id,out_id) VALUES (%s,%s);",[activation_id,n])
+                cur.execute("INSERT INTO activation_out  (avid,oid) VALUES (%s,%s);",[avid,n])
             self.conn.commit()
-            return id
         except Exception as ex:
             handle_db_error("add_object",ex)
 
-    def add_log(self,id,event,data):
+    def add_log(self,xid,event,data):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO log (time,id,event,data) VALUES (clock_timestamp(),%s,%s,%s);",[id,event,data])
+            cur.execute("INSERT INTO log (time,xid,event,data) VALUES (clock_timestamp(),%s,%s,%s);",[xid,event,data])
         except Exception as ex:
             handle_db_error("add_log",ex)
+
+    def get_object(self,oid):
+        return PgObject(self,oid)
+
+def singlevalue(cur):
+    # TODO check if it is really a single value
+    if cur.rowcount == 1:
+        rows = cur.fetchall()
+        return rows[0][0]
+    else:
+        raise Exception('postgres result not a single value')
+
+class PgWrapper:
+   def __init__(self,db,table,xid):
+       self.db = db
+       self.table = table
+       self.xid = xid
+
+   def __getattr__(self, name):
+
+       def _try_retrieve(*args, **kwargs):
+           try:
+               cur = self.db.conn.cursor()
+               cur.execute("SELECT "+str(name)+" FROM "+self.table+" WHERE oid="+str(self.xid)+";")
+               return singlevalue(cur)
+           except Exception as ex:
+               handle_db_error("_try_retrieve",ex)
+
+       return _try_retrieve
+
+class PgObject(PgWrapper):
+
+   def __init__(self,db,xid):
+       super(PgObject, self).__init__(db,"object",xid)
+       self.contained = "xxx"
+
+   def activity(self):
+       print("activity_called")
 
 def handle_db_error(what, ex):
     print(what+": "+str(ex))
@@ -160,3 +194,4 @@ def opendb(configfile):
     # conn.cursor().execute("CREATE TABLE tab (dummy int);")
     pdb = postgres(conn)
     return pdb
+
