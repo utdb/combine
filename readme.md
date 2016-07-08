@@ -14,7 +14,7 @@ Set up
 To run combine, make sure the environment satisfies the following requirements:
 
   * Python 3.4+
-  * The python packages mentioned in `requirements.txt`
+  * Install the packages specification from `requirements.txt` (most easily with `pip install -r requirements.txt`)
 
 
 Contributing
