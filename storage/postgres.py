@@ -14,6 +14,15 @@ class postgres:
             stat = """
                   CREATE SEQUENCE combine_global_id;
 
+                  CREATE TABLE job (
+		      jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      name              TEXT,
+                      description       TEXT,
+                      createtime        TIMESTAMP,
+                      starttime         TIMESTAMP,
+                      stoptime          TIMESTAMP
+                  );
+
                   CREATE TABLE object (
 		      oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time         TIMESTAMP,
@@ -25,7 +34,7 @@ class postgres:
                   CREATE TABLE activity (
 		      aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
-                      job        BIGINT,
+                      jid        BIGINT,
                       module     TEXT
                   );
                   CREATE TABLE activity_trigger (
@@ -65,8 +74,9 @@ class postgres:
         try:
             cur = self.conn.cursor()
             stat = """
-                  DROP TABLE IF EXISTS actions    CASCADE;
+                  DROP TABLE IF EXISTS job    CASCADE;
                   DROP TABLE IF EXISTS object     CASCADE;
+                  DROP TABLE IF EXISTS actions    CASCADE;
                   DROP TABLE IF EXISTS provenance CASCADE;
                   DROP TABLE IF EXISTS activity    CASCADE;
                   DROP TABLE IF EXISTS activity_trigger    CASCADE;
@@ -81,10 +91,24 @@ class postgres:
         except Exception as ex:
             handle_db_error("destroy",ex)
 
-    def add_activity(self,job,module,triggerseq):
+
+
+    def add_job(self,name,description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime,job,module) VALUES (clock_timestamp(),%s,%s);",[job,module])
+            cur.execute("INSERT INTO job (name,description,createtime) VALUES (%s,%s,clock_timestamp());",[name,description])
+            stat = "select last_value from combine_global_id;"
+            cur.execute(stat)
+            jid = singlevalue(cur)
+            self.conn.commit()
+            return jid
+        except Exception as ex:
+            handle_db_error("add_job",ex)
+
+    def add_activity(self,jid,module,triggerseq):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO activity (createtime,jid,module) VALUES (clock_timestamp(),%s,%s);",[jid,module])
             stat = "select last_value from combine_global_id;"
             cur.execute(stat)
             aid = singlevalue(cur)
