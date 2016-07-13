@@ -70,6 +70,15 @@ class postgres:
                   CREATE VIEW active_activity AS
                       SELECT activity.aid, activity.module FROM activity,active_job
                       WHERE active_job.jid = activity.jid;
+                  CREATE VIEW active_activity_in AS
+                      SELECT active_activity.aid, activation_in.oid FROM active_activity, activation, activation_in
+                      WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
+                  CREATE VIEW activity_trigger_oid AS
+                      SELECT activity.aid, object.oid FROM activity, activity_trigger, object
+                      WHERE activity.aid = activity_trigger.aid AND activity_trigger.tags <@ object.tags;
+                  CREATE VIEW todo AS
+                  SELECT * from activity_trigger_oid 
+                  EXCEPT SELECT * from active_activity_in;
                """
             cur.execute(stat)
             self.conn.commit()
