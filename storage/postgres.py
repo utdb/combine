@@ -15,7 +15,7 @@ class postgres:
                   CREATE SEQUENCE combine_global_id;
 
                   CREATE TABLE job (
-		      jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       name              TEXT,
                       description       TEXT,
                       createtime        TIMESTAMP,
@@ -24,7 +24,7 @@ class postgres:
                   );
 
                   CREATE TABLE object (
-		      oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time         TIMESTAMP,
                       avid         BIGINT,
                       kind         TEXT,
@@ -34,7 +34,7 @@ class postgres:
                   );
                   CREATE INDEX idx_object_tags on object USING GIN ("tags");
                   CREATE TABLE activity (
-		      aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
                       jid        BIGINT,
                       module     TEXT
@@ -45,20 +45,20 @@ class postgres:
                       tags      TEXT[]
                   );
                   CREATE TABLE activation (
-		      avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime  TIMESTAMP,
                       aid         BIGINT
                   );
                   CREATE TABLE activation_in (
-		      avid BIGINT,
+                      avid BIGINT,
                       oid  BIGINT
                   );
                   CREATE TABLE activation_out (
-		      avid  BIGINT,
+                      avid  BIGINT,
                       oid   BIGINT
                   );
                   CREATE TABLE log (
-		      lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time      TIMESTAMP,
                       xid        BIGINT,
                       event     TEXT,
