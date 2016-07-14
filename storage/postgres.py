@@ -14,8 +14,15 @@ class postgres:
             stat = """
                   CREATE SEQUENCE combine_global_id;
 
+                  CREATE TABLE context (
+		      cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      name              TEXT,
+                      description       TEXT
+                  );
+
                   CREATE TABLE job (
                       jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      cid               BIGINT,
                       name              TEXT,
                       description       TEXT,
                       createtime        TIMESTAMP,
@@ -25,6 +32,7 @@ class postgres:
 
                   CREATE TABLE object (
                       oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      jid          BIGINT,
                       time         TIMESTAMP,
                       avid         BIGINT,
                       kind         TEXT,
@@ -60,7 +68,7 @@ class postgres:
                   CREATE TABLE log (
                       lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time      TIMESTAMP,
-                      xid        BIGINT,
+                      xid       BIGINT,
                       event     TEXT,
                       data      TEXT
                   );
@@ -92,6 +100,7 @@ class postgres:
         try:
             cur = self.conn.cursor()
             stat = """
+                  DROP TABLE IF EXISTS context    CASCADE;
                   DROP TABLE IF EXISTS job    CASCADE;
                   DROP TABLE IF EXISTS object     CASCADE;
                   DROP TABLE IF EXISTS actions    CASCADE;
@@ -110,14 +119,26 @@ class postgres:
             handle_db_error("destroy",ex)
 
 
-    def add_job(self,name,description):
+    def add_context(self,name,description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO job (name,description,createtime) VALUES (%s,%s,clock_timestamp());",[name,description])
+            cur.execute("INSERT INTO context (name,description) VALUES (%s,%s);",[name,description])
+            cur.execute("select last_value from combine_global_id;")
+            cid = singlevalue(cur)
+            self.conn.commit()
+            return cid
+        except Exception as ex:
+            handle_db_error("add_context",ex)
+
+    def add_job(self,cid,name,description):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO job (cid,name,description,createtime) VALUES (%s,%s,%s,clock_timestamp());",[cid,name,description])
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.conn.commit()
             return jid
+
         except Exception as ex:
             handle_db_error("add_job",ex)
 
@@ -145,10 +166,10 @@ class postgres:
         except Exception as ex:
             handle_db_error("add_activation",ex)
 
-    def add_object(self,avid,kind,tags,content_type,content):
+    def add_object(self,jid,avid,kind,tags,content_type,content):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s);",[avid,kind,tags,content_type,content])
+            cur.execute("INSERT INTO object (time,jid,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s,%s);",[jid,avid,kind,tags,content_type,content])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             self.conn.commit()
