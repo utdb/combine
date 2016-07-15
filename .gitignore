@@ -1,4 +1,5 @@
 env/
+combine.log
 cache/
 __pycache__/
 *.local.*

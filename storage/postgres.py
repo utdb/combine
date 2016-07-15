@@ -1,4 +1,5 @@
 import sys, traceback
+import logging
 import configparser
 import psycopg2
 
@@ -6,11 +7,11 @@ class postgres:
 
     def __init__(self,conn):
         self.conn = conn
-        print("INIT DB")
+        logging.info("Open Postgres DB: "+str(self.conn))
 
     def closedb(self):
         self.conn.close()
-        print("CLOSE DB")
+        logging.info("Close Postgres DB: "+str(self.conn))
 
     def create(self):
         try:
@@ -274,7 +275,7 @@ class PgJob(PgWrapper):
         
 
 def handle_db_error(what, ex):
-    print(what+": "+str(ex))
+    print(what+": "+str(ex), file=sys.stderr)
     traceback.print_exc(file=sys.stdout)
     sys.exit()
 
@@ -289,7 +290,6 @@ def opendb(configfile):
     except Exception as ex:
         handle_db_error("Unable to connect to postgres"+str(ex))
 
-    # conn.cursor().execute("CREATE TABLE tab (dummy int);")
     pdb = postgres(conn)
     return pdb
 

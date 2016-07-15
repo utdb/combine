@@ -1,4 +1,5 @@
 from threading import Thread
+import logging
 import configparser
 
 import storage
@@ -8,15 +9,15 @@ class running_activity:
     def __init__(self,db,activity):
         self.db = db
         self.activity = activity
-        self.module =  __import__("modules."+activity.module(), fromlist=[''])
-        print("START ACTIVITY:"+activity.module())
+        self.module =  __import__("modules."+self.activity.module(), fromlist=[''])
+        logging.info("running_activity:"+self.activity.module() + " start")
 
     def handle_object(self,o):
-        print("HANDLE_OBJECT:"+self.activity.module() + "|" + str(o.oid()))
+        logging.info("running_activity:"+self.activity.module() + " handle_object:"+self.activity.module() + "|" + str(o.oid()))
         self.module.handle_object(self.db,self.activity,o)
 
 def start_job(configfile,job):
-    print("Starting Combine Job: "+job.name() + "[" +str(job.jid())+"]")
+    logging.info("Starting Combine Job: "+job.name() + "[" +str(job.jid())+"]")
     db = storage.opendb(configfile)
     todo = db.objects_todo(job)
     for ao in todo:
@@ -27,7 +28,7 @@ def start(configfile):
     """
     Run the Combine engine
     """
-    print("Running the Combine Web Harvesting engine!")
+    logging.info("Running the Combine Web Harvesting engine!")
     db = storage.opendb(configfile)
     joblist = []
     for job in db.active_jobs():
