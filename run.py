@@ -10,11 +10,11 @@ def create_schedule(configfile):
 
     cid   = db.add_context("globalctx","Global Context")
     jid   = db.add_job(cid,"myfirstjob","This is my first job")
-    acopy = db.add_activity(jid,"copy",(["mykind",["tag1","tag2"]],))
-    act = db.add_activation(acopy)
-    o1 = db.add_object(jid,act,"mykind",["tag1","tag2"],"application/text","Hello World 1")
+    db.add_activity(jid,"modules.copy",(["mykind",["tag1","tag2"]],))
+    db.add_activity(jid,"modules.doublecopy",(["copykind",["copytag"]],))
+    db.add_object(jid,0,"mykind",["tag1","tag2"],"application/text","Hello World 1")
     #
-    j = db.get_job(jid)
+    j = db.get_job(jid) # incomplete, should be from add_context
     j.start()
     #
     db.closedb()
