@@ -1,4 +1,4 @@
-import sys
+import sys, traceback
 import configparser
 import psycopg2
 
@@ -80,15 +80,15 @@ class postgres:
                       SELECT * from job 
                       WHERE (stoptime IS NULL) AND NOT (starttime IS NULL);
                   CREATE VIEW active_activity AS
-                      SELECT activity.aid, activity.module FROM activity,active_job
+                      SELECT activity.aid,activity.module,activity.jid FROM activity,active_job
                       WHERE active_job.jid = activity.jid;
                   CREATE VIEW active_activity_in AS
-                      SELECT active_activity.aid, activation_in.oid FROM active_activity, activation, activation_in
+                      SELECT active_activity.aid,activation_in.oid,active_activity.jid FROM active_activity, activation, activation_in
                       WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
                   CREATE VIEW activity_trigger_oid AS
-                      SELECT activity.aid, object.oid FROM activity, activity_trigger, object
+                      SELECT activity.aid,object.oid,activity.jid FROM activity, activity_trigger, object
                       WHERE activity.aid = activity_trigger.aid AND activity_trigger.tags <@ object.tags;
-                  CREATE VIEW todo AS
+                  CREATE VIEW objects_todo AS
                   SELECT * from activity_trigger_oid 
                   EXCEPT SELECT * from active_activity_in;
                """
@@ -209,6 +209,19 @@ class postgres:
     def get_job(self,jid):
         return PgJob(self,jid)
 
+    def get_activity(self,aid):
+        return PgActivity(self,aid)
+
+    def active_jobs(self):
+        cur = self.conn.cursor()
+        cur.execute("SELECT jid FROM active_job;")
+        return [self.get_job(row[0]) for row in cur.fetchall()]
+
+    def objects_todo(self,job):
+        cur = self.conn.cursor()
+        cur.execute("select aid, oid from objects_todo where jid="+str(job.jid())+" order by oid;")
+        return [(row[0],row[1]) for row in cur.fetchall()]
+
 def singlevalue(cur):
     # TODO check if it is really a single value
     if cur.rowcount == 1:
@@ -241,6 +254,11 @@ class PgObject(PgWrapper):
    def __init__(self,db,idvalue):
        super(PgObject, self).__init__(db,"object","oid",idvalue)
 
+class PgActivity(PgWrapper):
+
+   def __init__(self,db,idvalue):
+       super(PgActivity, self).__init__(db,"activity","aid",idvalue)
+
 class PgJob(PgWrapper):
 
    def __init__(self,db,idvalue):
@@ -257,6 +275,7 @@ class PgJob(PgWrapper):
 
 def handle_db_error(what, ex):
     print(what+": "+str(ex))
+    traceback.print_exc(file=sys.stdout)
     sys.exit()
 
 def opendb(configfile):
