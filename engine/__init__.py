@@ -1,6 +1,6 @@
 import configparser
 
-def start(configfile,db):
+def start(configfile):
     """
     Run the combine engine
     """

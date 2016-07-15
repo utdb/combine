@@ -8,6 +8,10 @@ class postgres:
         self.conn = conn
         print("INIT DB")
 
+    def closedb(self):
+        self.conn.close()
+        print("CLOSE DB")
+
     def create(self):
         try:
             cur = self.conn.cursor()
