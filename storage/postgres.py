@@ -132,32 +132,32 @@ class postgres:
             cur.execute("select last_value from combine_global_id;")
             cid = singlevalue(cur)
             self.conn.commit()
-            return cid
+            return self.get_context(cid)
         except Exception as ex:
             handle_db_error("add_context",ex)
 
-    def add_job(self,cid,name,description):
+    def add_job(self,context,name,description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO job (cid,name,description,createtime) VALUES (%s,%s,%s,clock_timestamp());",[cid,name,description])
+            cur.execute("INSERT INTO job (cid,name,description,createtime) VALUES (%s,%s,%s,clock_timestamp());",[context.cid(),name,description])
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.conn.commit()
-            return jid
+            return self.get_job(jid)
 
         except Exception as ex:
             handle_db_error("add_job",ex)
 
-    def add_activity(self,jid,module,triggerseq):
+    def add_activity(self,job,module,triggerseq):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime,jid,module) VALUES (clock_timestamp(),%s,%s);",[jid,module])
+            cur.execute("INSERT INTO activity (createtime,jid,module) VALUES (clock_timestamp(),%s,%s);",[job.jid(),module])
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in triggerseq:
                 cur.execute("INSERT INTO activity_trigger (aid,kind,tags) VALUES (%s,%s,%s);",[aid,trigger[0],trigger[1]])
             self.conn.commit()
-            return aid
+            return self.get_activity(aid)
         except Exception as ex:
             handle_db_error("add_activity",ex)
 
@@ -168,32 +168,36 @@ class postgres:
             cur.execute("select last_value from combine_global_id;")
             avid = singlevalue(cur)
             self.conn.commit()
-            return avid
+            return self.get_activation(avid)
         except Exception as ex:
             handle_db_error("add_activation",ex)
 
-    def add_object(self,jid,avid,kind,tags,content_type,content):
+    def add_object(self,job,activation,kind,tags,content_type,content):
         try:
+            if activation is None:
+                avid = 0
+            else:
+                avid = activation.avid()
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time,jid,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s,%s);",[jid,avid,kind,tags,content_type,content])
+            cur.execute("INSERT INTO object (time,jid,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s,%s);",[job.jid(),avid,kind,tags,content_type,content])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             self.conn.commit()
-            return oid
+            return self.get_object(oid)
         except Exception as ex:
             handle_db_error("add_object",ex)
 
 
-    def set_activation_graph(self,avid,inseq,outseq):
+    def set_activation_graph(self,activation,inseq,outseq):
         try:
             cur = self.conn.cursor()
             for n in inseq:
-                cur.execute("INSERT INTO activation_in  (avid,oid) VALUES (%s,%s);",[avid,n])
+                cur.execute("INSERT INTO activation_in  (avid,oid) VALUES (%s,%s);",[activation.avid(),n.oid()])
             for n in outseq:
-                cur.execute("INSERT INTO activation_out  (avid,oid) VALUES (%s,%s);",[avid,n])
+                cur.execute("INSERT INTO activation_out  (avid,oid) VALUES (%s,%s);",[activation.avid(),n.oid()])
             self.conn.commit()
         except Exception as ex:
-            handle_db_error("add_object",ex)
+            handle_db_error("set_activation_graph",ex)
 
     def add_log(self,xid,event,data):
         try:
@@ -208,11 +212,18 @@ class postgres:
     def get_object(self,oid):
         return PgObject(self,oid)
 
+    def get_context(self,cid):
+        return PgContext(self,cid)
+
     def get_job(self,jid):
         return PgJob(self,jid)
 
     def get_activity(self,aid):
         return PgActivity(self,aid)
+
+    def get_activation(self,aid):
+        return PgActivation(self,aid)
+
 
     def active_jobs(self):
         cur = self.conn.cursor()
@@ -243,7 +254,7 @@ class PgDictWrapper:
    def __getattr__(self, name):
 
        def _try_retrieve(*args, **kwargs):
-           logging.info("PgDictWrapper:retrieve cached attr:"+name)
+           # logging.info("PgDictWrapper:retrieve dict attr:"+name)
            return self.cacherec[name]
 
        return _try_retrieve
@@ -257,6 +268,16 @@ class PgActivity(PgDictWrapper):
 
    def __init__(self,db,idvalue):
        super(PgActivity, self).__init__(db,"select * from activity where aid="+str(idvalue)+";")
+
+class PgActivation(PgDictWrapper):
+
+   def __init__(self,db,idvalue):
+       super(PgActivation, self).__init__(db,"select * from activation where avid="+str(idvalue)+";")
+
+class PgContext(PgDictWrapper):
+
+   def __init__(self,db,idvalue):
+       super(PgContext, self).__init__(db,"select * from context where cid="+str(idvalue)+";")
 
 class PgJob(PgDictWrapper):
 

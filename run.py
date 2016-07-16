@@ -8,15 +8,12 @@ def create_schedule(configfile):
     db.destroy()
     db.create()
 
-    cid   = db.add_context("globalctx","Global Context")
-    jid   = db.add_job(cid,"myfirstjob","This is my first job")
-    db.add_activity(jid,"modules.copy",(["mykind",["tag1","tag2"]],))
-    db.add_activity(jid,"modules.doublecopy",(["copykind",["copytag"]],))
-    db.add_object(jid,0,"mykind",["tag1","tag2"],"application/text","Hello World 1")
-    #
-    j = db.get_job(jid) # incomplete, should be from add_context
-    j.start()
-    #
+    context = db.add_context("globalctx","Global Context")
+    job     = db.add_job(context,"myfirstjob","This is my first job")
+    db.add_activity(job,"modules.copy",(["mykind",["tag1","tag2"]],))
+    db.add_activity(job,"modules.doublecopy",(["copykind",["copytag"]],))
+    db.add_object(job,None,"mykind",["tag1","tag2"],"application/text","Hello World 1")
+    job.start()
     db.closedb()
 
 logging.basicConfig(filename='combine.log',level=logging.INFO)

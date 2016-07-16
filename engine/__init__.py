@@ -6,15 +6,16 @@ import storage
 
 class activity_handler:
 
-    def __init__(self,db,activity):
+    def __init__(self,db,job,activity):
         self.db = db
+        self.job = job
         self.activity = activity
         self.module =  __import__(self.activity.module(), fromlist=[''])
         logging.info("activity_handler:"+self.activity.module() + " start")
 
     def handle_object(self,o):
         logging.info("activity_handler:"+self.activity.module() + " handle_object:"+self.activity.module() + "|" + str(o.oid()))
-        self.module.handle_object(self.db,self.activity,o)
+        self.module.handle_object(self.db,self.job,self.activity,o)
 
 def run_job(configfile,job):
     db = storage.opendb(configfile)
@@ -29,7 +30,7 @@ def run_job(configfile,job):
         for ao in todo:
             a = active.get(ao[0])
             if a is None:
-                a = activity_handler(db,db.get_activity(ao[0]))
+                a = activity_handler(db,job,db.get_activity(ao[0]))
                 active[ao[0]] = a
             a.handle_object(db.get_object(ao[1]))
     db.closedb()
