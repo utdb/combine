@@ -2,6 +2,7 @@ import sys, traceback
 import logging
 import configparser
 import psycopg2
+import psycopg2.extras
 
 class postgres:
 
@@ -231,47 +232,45 @@ def singlevalue(cur):
     else:
         raise Exception('postgres result not a single value')
 
-class PgWrapper:
-   def __init__(self,db,table,idattr,idvalue):
+class PgDictWrapper:
+
+   def __init__(self,db,sql_statement):
        self.db = db
-       self.table = table
-       self.idattr = idattr
-       self.idvalue = idvalue
+       cur = db.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+       cur.execute(sql_statement)
+       self.cacherec = cur.fetchone()
 
    def __getattr__(self, name):
 
        def _try_retrieve(*args, **kwargs):
-           try:
-               cur = self.db.conn.cursor()
-               cur.execute("SELECT "+name+" FROM "+self.table+" WHERE "+self.idattr+"="+str(self.idvalue)+";")
-               return singlevalue(cur)
-           except Exception as ex:
-               handle_db_error("_try_retrieve",ex)
+           logging.info("PgDictWrapper:retrieve cached attr:"+name)
+           return self.cacherec[name]
 
        return _try_retrieve
 
-class PgObject(PgWrapper):
+class PgObject(PgDictWrapper):
 
    def __init__(self,db,idvalue):
-       super(PgObject, self).__init__(db,"object","oid",idvalue)
+       super(PgObject, self).__init__(db,"select * from object where oid="+str(idvalue)+";")
 
-class PgActivity(PgWrapper):
-
-   def __init__(self,db,idvalue):
-       super(PgActivity, self).__init__(db,"activity","aid",idvalue)
-
-class PgJob(PgWrapper):
+class PgActivity(PgDictWrapper):
 
    def __init__(self,db,idvalue):
-       super(PgJob, self).__init__(db,"job","jid",idvalue)
+       super(PgActivity, self).__init__(db,"select * from activity where aid="+str(idvalue)+";")
+
+class PgJob(PgDictWrapper):
+
+   def __init__(self,db,idvalue):
+       super(PgJob, self).__init__(db,"select * from job where jid="+str(idvalue)+";")
+       self.idvalue = idvalue
 
    def start(self):
        try:
            cur = self.db.conn.cursor()
-           cur.execute("UPDATE "+self.table+" SET starttime=clock_timestamp(), stoptime=NULL WHERE "+self.idattr+"="+str(self.idvalue)+";")
+           cur.execute("UPDATE job SET starttime=clock_timestamp(), stoptime=NULL WHERE jid="+str(self.idvalue)+";")
            self.db.conn.commit()
        except Exception as ex:
-           handle_db_error("_try_retrieve",ex)
+           handle_db_error("job:start: ",ex)
         
 
 def handle_db_error(what, ex):
