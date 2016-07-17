@@ -51,7 +51,8 @@ class postgres:
                       aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
                       jid        BIGINT,
-                      module     TEXT
+                      module     TEXT,
+                      args       TEXT
                   );
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
@@ -89,7 +90,7 @@ class postgres:
                       WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
                   CREATE VIEW activity_trigger_oid AS
                       SELECT activity.aid,object.oid,activity.jid FROM activity, activity_trigger, object
-                      WHERE activity.aid = activity_trigger.aid AND activity_trigger.tags <@ object.tags;
+                      WHERE activity.aid = activity_trigger.aid AND activity_trigger.kind = object.kind AND activity_trigger.tags <@ object.tags;
                   CREATE VIEW objects_todo AS
                   SELECT * from activity_trigger_oid 
                   EXCEPT SELECT * from active_activity_in;
@@ -148,10 +149,10 @@ class postgres:
         except Exception as ex:
             handle_db_error("add_job",ex)
 
-    def add_activity(self,job,module,triggerseq):
+    def add_activity(self,job,module,args,triggerseq):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime,jid,module) VALUES (clock_timestamp(),%s,%s);",[job.jid(),module])
+            cur.execute("INSERT INTO activity (createtime,jid,module,args) VALUES (clock_timestamp(),%s,%s,%s);",[job.jid(),module,args])
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in triggerseq:

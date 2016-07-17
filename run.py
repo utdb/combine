@@ -10,8 +10,8 @@ def create_schedule(configfile):
 
     context = db.add_context("globalctx","Global Context")
     job     = db.add_job(context,"myfirstjob","This is my first job")
-    db.add_activity(job,"modules.copy",(["mykind",["tag1","tag2"]],))
-    db.add_activity(job,"modules.doublecopy",(["copykind",["copytag"]],))
+    db.add_activity(job,"modules.copy","args",(["mykind",["tag1","tag2"]],))
+    db.add_activity(job,"modules.doublecopy","args",(["copykind",["copytag"]],))
     db.add_object(job,None,"mykind",["tag1","tag2"],"application/text","Hello World 1")
     job.start()
     db.closedb()

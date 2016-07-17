@@ -1,7 +1,7 @@
 import logging
 
 def handle_object(db,job,activity,o):
-    logging.info(__name__+": handle_object(aid="+str(activity.aid())+",oid="+str(o.oid())+") start")
+    logging.info(__name__+": handle_object(aid="+str(activity.aid())+",args="+str(activity.args())+",oid="+str(o.oid())+") start")
     #
     # Doing it the easy way
     #
