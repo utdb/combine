@@ -1,4 +1,6 @@
+import sys
 from threading import Thread
+import traceback
 import logging
 import configparser
 
@@ -22,6 +24,16 @@ class basic_handler:
            self.job = self.db.get_job(self.activity.jid())
         self.inobj  = []
         self.outobj = []
+        self.db.add_log(self.activation.avid(),"start","")
+
+    def finish_activation(self):
+        self.db.set_activation_graph(self.activation,self.inobj,self.outobj)
+        self.activation.set_status('f')
+        self.db.add_log(self.activation.avid(),"finish","")
+        self.reset_activation()
+
+    def reset_activation(self):
+        self.activation = None
 
     def add2in(self,o):
         self.inobj.append(o)
@@ -33,9 +45,6 @@ class basic_handler:
         newobj = self.db.add_object(self.job,self.activation,kind,tags,content_type,content)
         return newobj
 
-    def finish_activation(self):
-        self.db.set_activation_graph(self.activation,self.inobj,self.outobj)
-        self.activation = None
 
 class activity_handler:
 
@@ -48,10 +57,22 @@ class activity_handler:
         logging.info("activity_handler:"+self.activity.module() + " start")
 
     def handle_object(self,o):
-        logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") start")
+        logging.info(self.activity.module()+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") start")
         #
         self.handler.start_activation()
-        self.handler.handle_object(o)
+        try:
+            self.handler.handle_object(o)
+        except Exception as ex:
+            error_str = "EXCEPTION in module "+self.activity.module()+" on oid["+str(o.oid())+"]: " + str(ex) +'\n'+traceback.format_exc()
+            self.handler.activation.set_status('f')
+            self.db.add_log(self.handler.activation.avid(),"error",error_str)
+            logging.info(self.activity.module()+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") error")
+            logging.error(self.activity.module()+":"+error_str)
+            self.handler.reset_activation()
+            if (True):
+                # TODO do not stop here, be sensible
+                sys.exit()
+            return
         self.handler.finish_activation()
         #
         logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") finish")

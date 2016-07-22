@@ -8,6 +8,7 @@ class copy_handler(engine.basic_handler):
         # print("* Handle args here: "+context['args'])
 
     def handle_object(self,o):
+        # 1/0 # exception testing
         newobj = self.create_object("doublecopykind",["doublecopytag"],"application/text","DOUBLECOPY("+str(o.content())+")")
         self.add2in(o)
         self.add2out(newobj)

@@ -62,7 +62,8 @@ class postgres:
                   CREATE TABLE activation (
                       avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime  TIMESTAMP,
-                      aid         BIGINT
+                      aid         BIGINT,
+                      status      CHAR
                   );
                   CREATE TABLE activation_in (
                       avid BIGINT,
@@ -165,7 +166,7 @@ class postgres:
     def add_activation(self,aid):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activation(createtime,aid) VALUES (clock_timestamp(),%s);",[aid])
+            cur.execute("INSERT INTO activation(createtime,aid,status) VALUES (clock_timestamp(),%s,%s);",[aid,'s'])
             cur.execute("select last_value from combine_global_id;")
             avid = singlevalue(cur)
             self.conn.commit()
@@ -205,6 +206,7 @@ class postgres:
             cur.execute("INSERT INTO log (time,xid,event,data) VALUES (clock_timestamp(),%s,%s,%s);",[xid,event,data])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
+            self.conn.commit()
             return lid
         except Exception as ex:
             handle_db_error("add_log",ex)
@@ -273,7 +275,16 @@ class PgActivation(PgDictWrapper):
 
    def __init__(self,db,idvalue):
        super(PgActivation, self).__init__(db,"select * from activation where avid="+str(idvalue)+";")
+       self.idvalue = idvalue
 
+   def set_status(self,status):
+       try:
+           cur = self.db.conn.cursor()
+           cur.execute("UPDATE activation SET status=\'"+status+"\' WHERE avid="+str(self.idvalue)+";")
+           self.db.conn.commit()
+       except Exception as ex:
+           handle_db_error("job:start: ",ex)
+        
 class PgContext(PgDictWrapper):
 
    def __init__(self,db,idvalue):
