@@ -1,13 +1,20 @@
 import logging
+import engine
 
-def handle_object(db,job,activity,o):
-    logging.info(__name__+": handle_object(aid="+str(activity.aid())+",args="+str(activity.args())+",oid="+str(o.oid())+") start")
-    #
-    # Doing it the easy way
-    #
-    activity.start_activation()
-    newobj = activity.add_object("doublecopykind",["doublecopytag"],"application/text","DOUBLECOPY("+str(o.content())+")")
-    activity.add_activation_in(o)
-    activity.finish_activation()
-    #
-    logging.info(__name__+": handle_object(aid="+str(activity.aid())+",oid="+str(o.oid())+") finish")
+class copy_handler(engine.basic_handler):
+
+    def __init__(self,context):
+        super(copy_handler,self).__init__(context)
+        # print("* Handle args here: "+context['args'])
+
+    def handle_object(self,o):
+        newobj = self.create_object("doublecopykind",["doublecopytag"],"application/text","DOUBLECOPY("+str(o.content())+")")
+        self.add2in(o)
+        self.add2out(newobj)
+
+#
+#
+#
+
+def get_handler(context):
+    return copy_handler(context)

@@ -4,6 +4,20 @@ import configparser
 
 import storage
 
+class basic_handler:
+
+    def __init__(self,context):
+        self.context = context
+
+    def add2in(self,o):
+        self.context['activity'].add2in(o)
+
+    def add2out(self,o):
+        self.context['activity'].add2out(o)
+
+    def create_object(self,kind,tags,content_type,content):
+        return self.context['activity'].create_object(kind,tags,content_type,content)
+
 class activity_handler:
 
     def __init__(self,db,job,activity):
@@ -11,11 +25,17 @@ class activity_handler:
         self.job = job
         self.activity = activity
         self.module =  __import__(self.activity.module(), fromlist=[''])
+        self.handler = self.module.get_handler({'db':self.db,'job':job,'activity':self.activity,'args':activity.args()})
         logging.info("activity_handler:"+self.activity.module() + " start")
 
     def handle_object(self,o):
-        logging.info("activity_handler:"+self.activity.module() + " handle_object:"+self.activity.module() + "|" + str(o.oid()))
-        self.module.handle_object(self.db,self.job,self.activity,o)
+        logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") start")
+        #
+        self.activity.start_activation()
+        self.handler.handle_object(o)
+        self.activity.finish_activation()
+        #
+        logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") finish")
 
 def run_job(configfile,job):
     db = storage.opendb(configfile)

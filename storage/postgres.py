@@ -280,12 +280,14 @@ class PgActivity(PgDictWrapper):
        self.inobj  = []
        self.outobj = []
 
-   def add_activation_in(self,o):
+   def add2in(self,o):
        self.inobj.append(o)
 
-   def add_object(self,kind,tags,content_type,content):
+   def add2out(self,o):
+       self.outobj.append(o)
+
+   def create_object(self,kind,tags,content_type,content):
         newobj = self.db.add_object(self.job,self.activation,kind,tags,content_type,content)
-        self.outobj.append(newobj)
         return newobj
 
    def finish_activation(self):
