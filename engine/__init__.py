@@ -8,15 +8,34 @@ class basic_handler:
 
     def __init__(self,context):
         self.context = context
+        # tmp
+        self.db = context['db']
+        self.activity = context['activity']
+        self.job = None
+        self.activation = None
+
+    def start_activation(self):
+        if not(self.activation is None):
+           raise Exception("Start already started activation")
+        self.activation = self.db.add_activation(self.activity.aid())
+        if self.job is None:
+           self.job = self.db.get_job(self.activity.jid())
+        self.inobj  = []
+        self.outobj = []
 
     def add2in(self,o):
-        self.context['activity'].add2in(o)
+        self.inobj.append(o)
 
     def add2out(self,o):
-        self.context['activity'].add2out(o)
+        self.outobj.append(o)
 
     def create_object(self,kind,tags,content_type,content):
-        return self.context['activity'].create_object(kind,tags,content_type,content)
+        newobj = self.db.add_object(self.job,self.activation,kind,tags,content_type,content)
+        return newobj
+
+    def finish_activation(self):
+        self.db.set_activation_graph(self.activation,self.inobj,self.outobj)
+        self.activation = None
 
 class activity_handler:
 
@@ -31,9 +50,9 @@ class activity_handler:
     def handle_object(self,o):
         logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") start")
         #
-        self.activity.start_activation()
+        self.handler.start_activation()
         self.handler.handle_object(o)
-        self.activity.finish_activation()
+        self.handler.finish_activation()
         #
         logging.info(__name__+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") finish")
 

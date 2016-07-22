@@ -268,31 +268,6 @@ class PgActivity(PgDictWrapper):
 
    def __init__(self,db,idvalue):
        super(PgActivity, self).__init__(db,"select * from activity where aid="+str(idvalue)+";")
-       self.activation = None
-       self.job = None
-
-   def start_activation(self):
-       if not(self.activation is None):
-           raise Exception("Start already started activation")
-       self.activation = self.db.add_activation(self.aid())
-       if self.job is None:
-           self.job = self.db.get_job(self.jid())
-       self.inobj  = []
-       self.outobj = []
-
-   def add2in(self,o):
-       self.inobj.append(o)
-
-   def add2out(self,o):
-       self.outobj.append(o)
-
-   def create_object(self,kind,tags,content_type,content):
-        newobj = self.db.add_object(self.job,self.activation,kind,tags,content_type,content)
-        return newobj
-
-   def finish_activation(self):
-       self.db.set_activation_graph(self.activation,self.inobj,self.outobj)
-       self.activation = None
 
 class PgActivation(PgDictWrapper):
 
