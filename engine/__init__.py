@@ -24,12 +24,12 @@ class basic_handler:
            self.job = self.db.get_job(self.activity.jid())
         self.inobj  = []
         self.outobj = []
-        self.db.add_log(self.activation.avid(),"start","")
+        self.db.add_log(self.activation.avid(),"activation.start","")
 
     def finish_activation(self):
         self.db.set_activation_graph(self.activation,self.inobj,self.outobj)
         self.activation.set_status('f')
-        self.db.add_log(self.activation.avid(),"finish","")
+        self.db.add_log(self.activation.avid(),"activation.finish","")
         self.reset_activation()
 
     def reset_activation(self):
@@ -65,7 +65,7 @@ class activity_handler:
         except Exception as ex:
             error_str = "EXCEPTION in module "+self.activity.module()+" on oid["+str(o.oid())+"]: " + str(ex) +'\n'+traceback.format_exc()
             self.handler.activation.set_status('f')
-            self.db.add_log(self.handler.activation.avid(),"error",error_str)
+            self.db.add_log(self.handler.activation.avid(),"activation.error",error_str)
             logging.info(self.activity.module()+": handle_object(aid="+str(self.activity.aid())+",oid="+str(o.oid())+") error")
             logging.error(self.activity.module()+":"+error_str)
             self.handler.reset_activation()
