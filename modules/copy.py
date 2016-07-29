@@ -1,20 +1,19 @@
 import logging
 import engine
 
-class copy_handler(engine.basic_handler):
+class CopyHandler(engine.Activity):
 
-    def __init__(self,context):
-        super(copy_handler,self).__init__(context)
-        # print("* Handle args here: "+context['args'])
+    # def setup(self,args):
+        # print("* Handle args here: "+args)
 
-    def handle_object(self,o):
-        newobj = self.create_object("copykind",["copytag"],"application/text","COPY("+str(o.content())+")")
-        self.add2in(o)
-        self.add2out(newobj)
+    def handle(self,activation,obj):
+        activation.input(obj)
+        res = engine.LwObject("copykind",["copytag"],"application/text","COPY("+str(obj.content())+")")
+        activation.output(res)
 
 #
 #
 #
 
 def get_handler(context):
-    return copy_handler(context)
+    return CopyHandler(context)
