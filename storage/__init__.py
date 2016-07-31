@@ -1,6 +1,7 @@
 import configparser
 import storage.postgres
 
+
 def opendb(configfile):
     """
     Initialize a database connection

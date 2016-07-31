@@ -3,12 +3,12 @@ from threading import Thread
 import traceback
 import logging
 import configparser
-
 import storage
+
 
 class LwObject:
 
-    def __init__(self,a_kind,a_tags,a_content_type,a_content):
+    def __init__(self, a_kind, a_tags, a_content_type, a_content):
         self.a_kind = a_kind
         self.a_tags = a_tags
         self.a_content_type = a_content_type
@@ -26,9 +26,10 @@ class LwObject:
     def content(self):
         return self.a_content
 
+
 class Activation:
 
-    def __init__(self,context):
+    def __init__(self, context):
         self.context = context
         # tmp
         self.db = context['db']
@@ -38,62 +39,65 @@ class Activation:
 
     def start_activation(self):
         if not(self.activation is None):
-           raise Exception("Start already started activation")
+            raise Exception("Start already started activation")
         self.activation = self.db.add_activation(self.db_activity.aid())
         if self.job is None:
-           self.job = self.db.get_job(self.db_activity.jid())
-        self.inobj  = []
+            self.job = self.db.get_job(self.db_activity.jid())
+        self.inobj = []
         self.lwoutobj = []
-        self.db.add_log(self.activation.avid(),"activation.start","")
+        self.db.add_log(self.activation.avid(), "activation.start", "")
 
     def finish_activation(self):
         outobj = []
         for o in self.lwoutobj:
-            outobj.append(self.x_create_object(o))
-        self.db.set_activation_graph(self.activation,self.inobj,outobj)
+            outobj.append(self.create_object(o))
+        self.db.set_activation_graph(self.activation, self.inobj, outobj)
         self.activation.set_status('f')
-        self.db.add_log(self.activation.avid(),"activation.finish","")
+        self.db.add_log(self.activation.avid(), "activation.finish", "")
         self.reset_activation()
 
     def reset_activation(self):
         self.activation = None
 
-    def input(self,o):
+    def input(self, o):
         self.inobj.append(o)
 
-    def output(self,o):
+    def output(self, o):
         self.lwoutobj.append(o)
 
-    def x_create_object(self,lwo):
-        newobj = self.db.add_object(self.job,self.activation,lwo.kind(),lwo.tags(),lwo.content_type(),lwo.content())
+    def create_object(self, lwo):
+        newobj = self.db.add_object(self.job, self.activation, lwo.kind(), lwo.tags(), lwo.content_type(), lwo.content())
         return newobj
 
 
 class Activity:
 
-    def __init__(self,context):
+    def __init__(self, context):
         self.context = context
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
         self.setup(context['args'])
+        # TODO store triggers in Python obj
         logging.info("Activity:"+self.db_activity.module() + " start")
 
-    def setup(self,args):
+    def setup(self, args):
         logging.info("Activity:"+self.db_activity.module() + " setup() ignored")
 
-    def process_object(self,o):
-        logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+",oid="+str(o.oid())+") start")
+    def process_object(self, o):
+        logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
         #
         self.activation = Activation(self.context)
         self.activation.start_activation()
         try:
-            self.handle(self.activation,o)
+            self.handle(self.activation, o)
         except Exception as ex:
-            error_str = "EXCEPTION in module "+self.db_activity.module()+" on oid["+str(o.oid())+"]: " + str(ex) +'\n'+traceback.format_exc()
+            error_str = "EXCEPTION in module " + self.db_activity.module()\
+                         + " on oid[" + str(o.oid()) + "]: " + str(ex)\
+                         + '\n' + traceback.format_exc()
             self.activation.activation.set_status('e')
-            self.db.add_log(self.activation.activation.avid(),"activation.error",error_str)
-            logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+",oid="+str(o.oid())+") error")
+            self.db.add_log(self.activation.activation.avid(), "activation.error", error_str)
+            logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") error")
             logging.error(self.db_activity.module()+":"+error_str)
             self.activation.reset_activation()
             if (True):
@@ -102,14 +106,16 @@ class Activity:
             return
         self.activation.finish_activation()
         #
-        logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid())+",oid="+str(o.oid())+") finish")
+        logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") finish")
 
-def create_activity(db,job,db_activity):
-    module =  __import__(db_activity.module(), fromlist=[''])
-    activity = module.get_handler({'db':db,'job':job,'db_activity':db_activity,'args':db_activity.args()})
+
+def create_activity(db, job, db_activity):
+    module = __import__(db_activity.module(), fromlist=[''])
+    activity = module.get_handler({'db': db, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
     return activity
 
-def run_job(configfile,job):
+
+def run_job(configfile, job):
     db = storage.opendb(configfile)
     active = {}
     while True:
@@ -122,10 +128,11 @@ def run_job(configfile,job):
         for ao in todo:
             activity = active.get(ao[0])
             if activity is None:
-                activity = create_activity(db,job,db.get_activity(ao[0]))
+                activity = create_activity(db, job, db.get_activity(ao[0]))
                 active[ao[0]] = activity
             activity.process_object(db.get_object(ao[1]))
     db.closedb()
+
 
 def start(configfile):
     """
@@ -135,7 +142,7 @@ def start(configfile):
     db = storage.opendb(configfile)
     joblist = []
     for job in db.active_jobs():
-        jobthread = Thread(name="Job:"+job.name(),target=run_job,args=(configfile,job,))
-        joblist.append((job,jobthread))
+        jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(configfile, job, ))
+        joblist.append((job, jobthread))
         jobthread.start()
     # db.closedb() error
