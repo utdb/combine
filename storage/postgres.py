@@ -274,7 +274,17 @@ class PgActivity(PgDictWrapper):
 
     def __init__(self, db, idvalue):
         super(PgActivity,  self).__init__(db, "select * from activity where aid="+str(idvalue)+";")
+        self.trigger = []
+        cur = db.conn.cursor()
+        cur.execute("select * from activity_trigger where aid="+str(idvalue)+";")
+        for row in cur.fetchall():
+            self.trigger.append((row[1],row[2]))
+        print('xxxxxxxxx',self.trigger)
 
+class PgActivityTrigger(PgDictWrapper):
+
+    def __init__(self, db, idvalue):
+        super(PgActivityTrigger,  self).__init__(db, "select * from activity_trigger where aid="+str(idvalue)+";")
 
 class PgActivation(PgDictWrapper):
 
