@@ -8,8 +8,9 @@ class CopyHandler(engine.Activity):
         # print("* Handle args here: "+args)
 
     def handle(self, activation, obj):
+        # print("Activity triggers are "+str(self.triggers()))
         activation.input(obj)
-        res = engine.LwObject("copykind", ["copytag"], "application/text", "COPY("+str(obj.content())+")")
+        res = engine.LwObject("copykind", ["copytag"], "application/text", "COPY("+str(obj.text())+")", None)
         activation.output(res)
 
 

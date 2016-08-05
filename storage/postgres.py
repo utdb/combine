@@ -46,7 +46,8 @@ class PostgresConnection:
                       kind         TEXT,
                       tags         TEXT[],
                       content_type TEXT,
-                      content      BYTEA
+                      text         TEXT,
+                      data         BYTEA
                   );
                   CREATE INDEX idx_object_tags on object USING GIN ("tags");
                   CREATE TABLE activity (
@@ -175,14 +176,14 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def add_object(self, job, activation, kind, tags, content_type, content):
+    def add_object(self, job, activation, kind, tags, content_type, text, data):
         try:
             if activation is None:
                 avid = 0
             else:
                 avid = activation.avid()
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kind, tags, content_type, content) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, kind, tags, content_type, content])
+            cur.execute("INSERT INTO object (time, jid, avid, kind, tags, content_type, text, data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s, %s);", [job.jid(), avid, kind, tags, content_type, text, data])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             self.conn.commit()
@@ -278,13 +279,14 @@ class PgActivity(PgDictWrapper):
         cur = db.conn.cursor()
         cur.execute("select * from activity_trigger where aid="+str(idvalue)+";")
         for row in cur.fetchall():
-            self.trigger.append((row[1],row[2]))
-        print('xxxxxxxxx',self.trigger)
+            self.trigger.append((row[1], row[2]))
+
 
 class PgActivityTrigger(PgDictWrapper):
 
     def __init__(self, db, idvalue):
         super(PgActivityTrigger,  self).__init__(db, "select * from activity_trigger where aid="+str(idvalue)+";")
+
 
 class PgActivation(PgDictWrapper):
 

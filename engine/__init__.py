@@ -8,11 +8,12 @@ import storage
 
 class LwObject:
 
-    def __init__(self, a_kind, a_tags, a_content_type, a_content):
+    def __init__(self, a_kind, a_tags, a_content_type, a_text, a_data):
         self.a_kind = a_kind
         self.a_tags = a_tags
         self.a_content_type = a_content_type
-        self.a_content = a_content
+        self.a_text = a_text
+        self.a_data = a_data
 
     def kind(self):
         return self.a_kind
@@ -23,8 +24,11 @@ class LwObject:
     def content_type(self):
         return self.a_content_type
 
-    def content(self):
-        return self.a_content
+    def text(self):
+        return self.a_text
+
+    def data(self):
+        return self.a_data
 
 
 class Activation:
@@ -66,7 +70,7 @@ class Activation:
         self.lwoutobj.append(o)
 
     def create_object(self, lwo):
-        newobj = self.db.add_object(self.job, self.activation, lwo.kind(), lwo.tags(), lwo.content_type(), lwo.content())
+        newobj = self.db.add_object(self.job, self.activation, lwo.kind(), lwo.tags(), lwo.content_type(), lwo.text(), lwo.data())
         return newobj
 
 
@@ -77,12 +81,15 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
-        self.setup(context['args'])
+        self.setup([arg.strip() for arg in context['args'].split(',')])
         # TODO store triggers in Python obj
         logging.info("Activity:"+self.db_activity.module() + " start")
 
     def setup(self, args):
         logging.info("Activity:"+self.db_activity.module() + " setup() ignored")
+
+    def triggers(self):
+        return self.db_activity.trigger
 
     def process_object(self, o):
         logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
