@@ -109,6 +109,7 @@ class Activity:
             self.activation.reset_activation()
             if (True):
                 # TODO do not stop here, be sensible
+                print(error_str, file=sys.stderr)
                 sys.exit()
             return
         self.activation.finish_activation()

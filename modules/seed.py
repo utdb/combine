@@ -11,7 +11,11 @@ class SeedHandler(engine.Activity):
         parser.add_argument('-t', '--tag', required=True)
         args = vars(parser.parse_args(args))
         self.kind = args['kind']
-        self.tags = [args['tag']]
+        tag = args['tag']
+        if len(tag) == 0:
+            self.tags = []
+        else:
+            self.tags = [tag]
         # print("Activity triggers are "+str(self.triggers()))
 
     def handle(self, activation, obj):
@@ -19,7 +23,9 @@ class SeedHandler(engine.Activity):
         # read the seeds from the file in the start seed file
         with open(obj.text(), "r") as f:
             for seed in f:
-                activation.output(engine.LwObject(self.kind, self.tags, "application/text", seed.strip(), None))
+                seed = seed.strip()
+                if seed[0] != '#':
+                    activation.output(engine.LwObject(self.kind, self.tags, "application/text", seed.strip(), None))
 
 
 def get_handler(context):
