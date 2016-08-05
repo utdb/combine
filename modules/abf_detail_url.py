@@ -44,6 +44,9 @@ class AbfGetDetailUrl(engine.Activity):
                 bag[t['Key']] = t['Value']
             detail_url = abf_build_detail_url(bag)
             activation.output(engine.LwObject("abf_detail_url", [], "application/text", detail_url, None))
+            # TODO: implement minimality testing through env
+            # if True:
+                # return
 
 
 def get_handler(context):
