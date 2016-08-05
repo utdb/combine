@@ -32,7 +32,7 @@ def abf_build_detail_url(product):
     return base_url + "/{}/{}/{}".format(url_key, title, identifier)
 
 
-class RfcEntity(engine.Activity):
+class AbfGetDetailUrl(engine.Activity):
 
     def handle(self, activation, obj):
         activation.input(obj)
@@ -47,4 +47,4 @@ class RfcEntity(engine.Activity):
 
 
 def get_handler(context):
-    return RfcEntity(context)
+    return AbfGetDetailUrl(context)

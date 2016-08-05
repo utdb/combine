@@ -31,6 +31,7 @@ def create_bearings_schedule(configfile):
     job = db.add_job(context, "bearings-crawl-1", "Bearings Crawl Job")
     db.add_activity(job,  "modules.seed", "--kind=bearing_seed_id,--tag=", (["bearing_seed", []], ))
     db.add_activity(job,  "modules.abf_detail_url", "", (["bearing_seed_id", []], ))
+    db.add_activity(job,  "modules.abf_fetch", "", (["abf_detail_url", []], ))
     db.add_object(job, None, "bearing_seed", [], "application/text", "./cache/bearing_seed.txt", None)
     job.start()
     db.closedb()
