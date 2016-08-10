@@ -22,6 +22,10 @@ class AbfFetch(engine.Activity):
             }
         text = json.dumps(metadata, indent='   ') + '\n--\n' + result.text
         activation.output(engine.LwObject("abf_detail_page", [], "application/json", text, None))
+        if True:
+            file = open("./cache/fetch"+str(obj.oid()), "w")
+            file.write(text)
+            file.close()
 
 
 def get_handler(context):

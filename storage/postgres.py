@@ -24,14 +24,14 @@ class PostgresConnection:
 
                   CREATE TABLE context (
                       cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
-                      name              TEXT,
+                      name              VARCHAR(32) UNIQUE,
                       description       TEXT
                   );
 
                   CREATE TABLE job (
                       jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       cid               BIGINT,
-                      name              TEXT,
+                      name              VARCHAR(32) UNIQUE,
                       description       TEXT,
                       createtime        TIMESTAMP,
                       starttime         TIMESTAMP,
@@ -98,6 +98,10 @@ class PostgresConnection:
                   CREATE VIEW objects_todo AS
                   SELECT * from activity_trigger_oid
                   EXCEPT SELECT * from active_activity_in;
+                  CREATE VIEW activity_objects AS
+                  SELECT activity.module,activity.jid,activation.avid,object.oid
+                  FROM activity,activation,object 
+                  WHERE activity.aid = activation.aid AND activation.avid = object.avid;
                """
             cur.execute(stat)
             self.conn.commit()
@@ -147,7 +151,7 @@ class PostgresConnection:
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.conn.commit()
-            return self.get_job(jid)
+            return self.get_job(jid=jid)
 
         except Exception as ex:
             handle_db_error("add_job", ex)
@@ -219,8 +223,8 @@ class PostgresConnection:
     def get_context(self, cid):
         return PgContext(self, cid)
 
-    def get_job(self, jid):
-        return PgJob(self, jid)
+    def get_job(self, jid=None, name=None):
+        return PgJob(self, jid, name)
 
     def get_activity(self, aid):
         return PgActivity(self, aid)
@@ -231,7 +235,7 @@ class PostgresConnection:
     def active_jobs(self):
         cur = self.conn.cursor()
         cur.execute("SELECT jid FROM active_job;")
-        return [self.get_job(row[0]) for row in cur.fetchall()]
+        return [self.get_job(jid=row[0]) for row in cur.fetchall()]
 
     def objects_todo(self, job):
         cur = self.conn.cursor()
@@ -311,9 +315,10 @@ class PgContext(PgDictWrapper):
 
 class PgJob(PgDictWrapper):
 
-    def __init__(self, db, idvalue):
-        super(PgJob,  self).__init__(db, "select * from job where jid="+str(idvalue)+";")
-        self.idvalue = idvalue
+    def __init__(self, db, idvalue=None, name=None):
+        super(PgJob,  self).__init__(db, 'select * from job where ' +
+                (('jid='+str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) +";")
+        self.idvalue = self.jid()
 
     def start(self):
         try:
@@ -322,6 +327,19 @@ class PgJob(PgDictWrapper):
             self.db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
+
+    def delete_objects(self, activity=None):
+        cur = self.db.conn.cursor()
+        if activity is None:
+            cur.execute('SELECT * INTO TEMPORARY delobj FROM activity_objects where jid=%s ;',[self.jid()])
+        else:
+            cur.execute('SELECT * INTO TEMPORARY delobj FROM activity_objects where jid=%s AND module=%s;',[self.jid(),activity])
+        # TODO: do this recursively for delobj
+        cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
+        cur.execute('DELETE FROM activation_in WHERE avid IN (select avid from delobj);')
+        cur.execute('DELETE FROM activation_out WHERE avid IN (select avid from delobj);')
+        cur.execute('DELETE FROM activation WHERE avid IN (select avid from delobj);')
+        self.db.conn.commit()
 
 
 def handle_db_error(what,  ex):

@@ -19,6 +19,8 @@ def create_example_schedule(configfile):
     job.start()
     db.closedb()
 
+JOBNAME = 'bearings-crawl'
+
 
 def create_bearings_schedule(configfile):
     logging.info("Create new Bearings Schedule")
@@ -27,8 +29,8 @@ def create_bearings_schedule(configfile):
         # initialize a fresh database
         db.destroy()
         db.create()
-    context = db.add_context("globalctx", "Bearing Crawl Context")
-    job = db.add_job(context, "bearings-crawl-1", "Bearings Crawl Job")
+    context = db.add_context(JOBNAME, "Bearing Crawl Context")
+    job = db.add_job(context, JOBNAME, "Bearings Crawl Job")
     db.add_activity(job,
                     "modules.seed",
                     "--kind=bearing_seed_id,--tag=",
@@ -48,6 +50,12 @@ def create_bearings_schedule(configfile):
     job.start()
     db.closedb()
 
+def open_bearings_schedule(configfile):
+    logging.info("Open new Bearings Schedule")
+    db = storage.opendb(configfile)
+    job = db.get_job(name=JOBNAME)
+    job.delete_objects(activity="modules.abf_extract_fields")
+    print("Opened Job: "+job.name())
 
 logging.basicConfig(filename='combine.log', level=logging.INFO)
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -56,4 +64,5 @@ if __name__ == '__main__':
     configfile = "combine.local.cfg"
     # create_example_schedule(configfile)
     create_bearings_schedule(configfile)
+    # open_bearings_schedule(configfile)
     engine.start(configfile)

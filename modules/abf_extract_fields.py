@@ -53,7 +53,7 @@ class AbfExtractFields(engine.Activity):
         header = json.loads(html_header)
         fields.extend([['url', header.get("url")]])
         json_entity_fields = json.dumps(fields, indent='   ')
-        print(json_entity_fields)
+        # print(json_entity_fields)
         activation.output(engine.LwObject("abf_entity_fields", [], "application/json", json_entity_fields, None))
 
 
