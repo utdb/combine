@@ -55,6 +55,7 @@ def open_bearings_schedule(configfile):
     db = storage.opendb(configfile)
     job = db.get_job(name=JOBNAME)
     job.delete_objects(activity="modules.abf_extract_fields")
+    # job.delete_objects(activity="modules.abf_fetch")
     print("Opened Job: "+job.name())
 
 logging.basicConfig(filename='combine.log', level=logging.INFO)
@@ -63,6 +64,6 @@ logging.basicConfig(filename='combine.log', level=logging.INFO)
 if __name__ == '__main__':
     configfile = "combine.local.cfg"
     # create_example_schedule(configfile)
-    create_bearings_schedule(configfile)
-    # open_bearings_schedule(configfile)
+    # create_bearings_schedule(configfile)
+    open_bearings_schedule(configfile)
     engine.start(configfile)

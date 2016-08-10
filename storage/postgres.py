@@ -102,6 +102,10 @@ class PostgresConnection:
                   SELECT activity.module,activity.jid,activation.avid,object.oid
                   FROM activity,activation,object 
                   WHERE activity.aid = activation.aid AND activation.avid = object.avid;
+                  CREATE VIEW avinout AS
+                  SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
+                  FROM activation_in, activation_out
+                  WHERE activation_in.avid = activation_out.avid;
                """
             cur.execute(stat)
             self.conn.commit()
@@ -331,10 +335,20 @@ class PgJob(PgDictWrapper):
     def delete_objects(self, activity=None):
         cur = self.db.conn.cursor()
         if activity is None:
-            cur.execute('SELECT * INTO TEMPORARY delobj FROM activity_objects where jid=%s ;',[self.jid()])
+            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;',[self.jid()])
         else:
-            cur.execute('SELECT * INTO TEMPORARY delobj FROM activity_objects where jid=%s AND module=%s;',[self.jid(),activity])
-        # TODO: do this recursively for delobj
+            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;',[self.jid(),activity])
+        recursive_stat = """
+            WITH RECURSIVE avid_oid(avid,oid) AS (
+                SELECT * from delobj_base
+            UNION ALL
+                SELECT delta.avid, delta.oid_out
+                FROM avid_oid base, avinout delta
+                WHERE base.oid = delta.oid_in
+                )
+            SELECT * INTO TEMPORARY delobj FROM avid_oid;
+        """
+        cur.execute(recursive_stat)
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
         cur.execute('DELETE FROM activation_in WHERE avid IN (select avid from delobj);')
         cur.execute('DELETE FROM activation_out WHERE avid IN (select avid from delobj);')
