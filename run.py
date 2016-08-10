@@ -44,6 +44,9 @@ def create_bearings_schedule(configfile):
     db.add_activity(job,
                     "modules.abf_extract_fields", "",
                     (["abf_detail_page", []], ))
+    db.add_activity(job,
+                    "modules.abf_deduplicate", "",
+                    (["abf_entity_fields", []], ))
     #
     #
     db.add_object(job, None, "bearing_seed", [], "application/text", "./cache/bearing_seed.txt", None)
@@ -54,9 +57,8 @@ def open_bearings_schedule(configfile):
     logging.info("Open new Bearings Schedule")
     db = storage.opendb(configfile)
     job = db.get_job(name=JOBNAME)
-    job.delete_objects(activity="modules.abf_extract_fields")
-    # job.delete_objects(activity="modules.abf_fetch")
-    print("Opened Job: "+job.name())
+    # job.delete_objects(activity="modules.abf_extract_fields")
+    job.delete_objects(activity="modules.abf_deduplicate")
 
 logging.basicConfig(filename='combine.log', level=logging.INFO)
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
