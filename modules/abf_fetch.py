@@ -6,8 +6,7 @@ from engine import throttle
 
 class AbfFetch(engine.Activity):
 
-    def handle(self, activation, obj):
-        activation.input(obj)
+    def handle_simple(self, obj):
         detail_url = obj.text()
         detail_domain = detail_url.split("//")[-1].split("/")[0]
         # print("FETCH: "+detail_url)
@@ -21,11 +20,12 @@ class AbfFetch(engine.Activity):
             "headers": dict(result.headers)
             }
         text = json.dumps(metadata, indent='   ') + '\n--\n' + result.text
-        activation.output(engine.LwObject("abf_detail_page", [], "application/json", text, None))
+        result = [engine.LwObject("abf_detail_page", [], "application/json", text, None), ]
         if False:
             file = open("./cache/fetch"+str(obj.oid()), "w")
             file.write(text)
             file.close()
+        return result
 
 
 def get_handler(context):

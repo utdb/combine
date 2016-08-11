@@ -65,6 +65,6 @@ logging.basicConfig(filename='combine.log', level=logging.INFO)
 if __name__ == '__main__':
     configfile = "combine.local.cfg"
     # create_example_schedule(configfile)
-    # create_bearings_schedule(configfile)
-    open_bearings_schedule(configfile)
+    create_bearings_schedule(configfile)
+    # open_bearings_schedule(configfile)
     engine.start(configfile)

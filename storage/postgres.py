@@ -199,18 +199,14 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_object", ex)
 
-    def set_activation_graph(self, activation, inseq, outseq, shared_avid):
+    def set_activation_graph(self, activation, inseq, outseq):
         try:
             cur = self.conn.cursor()
             for n in inseq:
                 cur.execute("INSERT INTO activation_in  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
-            if outseq is None:
-                cur.execute("INSERT INTO activation_out (select %s, oid FROM activation_out WHERE avid=%s);",[activation.avid(), shared_avid])
-
-            else:
-                for n in outseq:
-                    cur.execute("INSERT INTO activation_out  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
-                self.conn.commit()
+            for n in outseq:
+                cur.execute("INSERT INTO activation_out  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
+            self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
 
@@ -247,8 +243,8 @@ class PostgresConnection:
 
     def objects_todo(self, job):
         cur = self.conn.cursor()
-        cur.execute("select aid,  oid from objects_todo where jid="+str(job.jid())+" order by oid;")
-        return [(row[0], row[1]) for row in cur.fetchall()]
+        cur.execute("SELECT DISTINCT ON (oid) oid, aid from objects_todo where jid="+str(job.jid())+" order by oid;")
+        return [(row[1], row[0]) for row in cur.fetchall()]
 
 
 def singlevalue(cur):
@@ -282,6 +278,8 @@ class PgObject(PgDictWrapper):
     def __init__(self, db, idvalue):
         super(PgObject,  self).__init__(db, "select * from object where oid="+str(idvalue)+";")
 
+    def lightweight(self):
+        return False
 
 class PgActivity(PgDictWrapper):
 

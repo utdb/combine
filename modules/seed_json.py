@@ -17,16 +17,18 @@ class SeedJsonHandler(engine.Activity):
             self.tags = []
         else:
             self.tags = [tag]
-        # print("Activity triggers are "+str(self.triggers()))
 
-    def handle(self, activation, obj):
-        activation.input(obj)
+    def handle_simple(self, obj):
+        # activation.input(obj)
         # read the seeds from the file in the start seed file
         with open(obj.text()) as data_file:    
             data = json.load(data_file)
+        result = []
         for item in data:
             json_rfc_fields = json.dumps(item, indent='   ')
-            activation.output(engine.LwObject(self.kind, self.tags, "application/text", json_rfc_fields, None))
+            # print("seed_json: generate: "+json_rfc_fields)
+            result.append(engine.LwObject(self.kind, self.tags, "application/text", json_rfc_fields, None))
+        return result
 
 
 def get_handler(context):

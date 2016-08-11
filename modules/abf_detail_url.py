@@ -18,7 +18,6 @@ def abf_search_page(term, take=50, skip=0):
             }
         }
     }
-
     r = requests.post(base_url + '/catalog/Search', json=request_payload)
     r.raise_for_status()
     return r.json()
@@ -38,12 +37,13 @@ class AbfGetDetailUrl(engine.Activity):
     def setup(self, args):
         # create a set of generated url's by the activity
         self.url_dict = {}
-        # store all previously generated url's with his avid
+        # store all previously generated url's with his oid container
         for obj in self.objects_out():
-            self.url_dict[obj.text()] = obj.avid()
+            self.url_dict[obj.text()] = [obj.oid()]
 
-    def handle(self, activation, obj):
-        activation.input(obj)
+    def handle_simple(self, obj):
+        # activation.input(obj)
+        result = []
         rfc_fields = json.loads(obj.text())
         rfc_item = rfc_fields[2]
         query_page = abf_search_page(rfc_item)
@@ -53,16 +53,23 @@ class AbfGetDetailUrl(engine.Activity):
                 # Assuming only a single value per key:
                 bag[t['Key']] = t['Value']
             detail_url = abf_build_detail_url(bag)
+            # print("DETAIL_URL: "+detail_url)
             if detail_url not in self.url_dict:
-                self.url_dict[obj.text()] = activation.avid()
-                activation.output(engine.LwObject("abf_detail_url", [], "application/text", detail_url, None))
+                newobj = engine.LwObject("abf_detail_url", [], "application/text", detail_url, None)
+                self.url_dict[detail_url] = newobj.delayed_oid_container()
+                result.append(newobj)
             else:
                 # the activation shares its output with the first
-                activation.share_activation(self.url_dict[obj.text()])
                 print("DUPLICATE_URL: "+detail_url)
+                delayed_oid = self.url_dict[detail_url][0]
+                if delayed_oid > 0:
+                    # otherwise the duplicate is duplicate within provenance
+                    newobj = self.get_object(delayed_oid)
+                    result.append(newobj)
             # TODO: implement minimality testing through env
             # if True:
-                # return
+                # break
+        return result
 
 
 def get_handler(context):

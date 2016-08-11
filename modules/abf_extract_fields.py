@@ -44,8 +44,7 @@ def abf_extract_body_fields(html_body):
 
 class AbfExtractFields(engine.Activity):
 
-    def handle(self, activation, obj):
-        activation.input(obj)
+    def handle_simple(self, obj):
         abf_storage = obj.text()
         html_header, html_body = abf_storage.split('\n--\n', 1)
         fields = {}
@@ -55,7 +54,7 @@ class AbfExtractFields(engine.Activity):
         fields['url'] = header.get("url")
         json_entity_fields = json.dumps(fields, indent='   ')
         # print("EXTRACTING:\n"+json_entity_fields)
-        activation.output(engine.LwObject("abf_entity", [], "application/json", json_entity_fields, None))
+        return [engine.LwObject("abf_entity", [], "application/json", json_entity_fields, None), ]
 
 
 def get_handler(context):
