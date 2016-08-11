@@ -32,33 +32,29 @@ def create_bearings_schedule(configfile):
     context = db.add_context(JOBNAME, "Bearing Crawl Context")
     job = db.add_job(context, JOBNAME, "Bearings Crawl Job")
     db.add_activity(job,
-                    "modules.seed",
-                    "--kind=bearing_seed_id,--tag=",
-                    (["bearing_seed", []], ))
+                    "modules.seed_json",
+                    "--kind=rfc_entity,--tag=",
+                    (["rfc_entity_seed", []], ))
     db.add_activity(job,
                     "modules.abf_detail_url", "",
-                    (["bearing_seed_id", []], ))
+                    (["rfc_entity", []], ))
     db.add_activity(job,
                     "modules.abf_fetch", "",
                     (["abf_detail_url", []], ))
     db.add_activity(job,
                     "modules.abf_extract_fields", "",
                     (["abf_detail_page", []], ))
-    db.add_activity(job,
-                    "modules.abf_deduplicate", "",
-                    (["abf_entity_fields", []], ))
     #
-    #
-    db.add_object(job, None, "bearing_seed", [], "application/text", "./cache/bearing_seed.txt", None)
+    db.add_object(job, None, "rfc_entity_seed", [], "application/text", "./data/rfc.in.test.json", None)
     job.start()
     db.closedb()
+
 
 def open_bearings_schedule(configfile):
     logging.info("Open new Bearings Schedule")
     db = storage.opendb(configfile)
     job = db.get_job(name=JOBNAME)
-    # job.delete_objects(activity="modules.abf_extract_fields")
-    job.delete_objects(activity="modules.abf_deduplicate")
+    job.delete_objects(activity="modules.abf_extract_fields")
 
 logging.basicConfig(filename='combine.log', level=logging.INFO)
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)

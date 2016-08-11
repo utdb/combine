@@ -1,5 +1,6 @@
 import logging
 import requests
+import json
 import engine
 
 base_url = 'http://webshop.abfbearings.com'
@@ -36,24 +37,28 @@ class AbfGetDetailUrl(engine.Activity):
 
     def setup(self, args):
         # create a set of generated url's by the activity
-        self.url_set = set()
-        # store all previously generated url's in the set
+        self.url_dict = {}
+        # store all previously generated url's with his avid
         for obj in self.objects_out():
-            s.add(obj.text())
+            self.url_dict[obj.text()] = obj.avid()
 
     def handle(self, activation, obj):
         activation.input(obj)
-        query_page = abf_search_page(obj.text())
+        rfc_fields = json.loads(obj.text())
+        rfc_item = rfc_fields[2]
+        query_page = abf_search_page(rfc_item)
         for p in query_page['Products']:
             bag = dict()
             for t in p:
                 # Assuming only a single value per key:
                 bag[t['Key']] = t['Value']
             detail_url = abf_build_detail_url(bag)
-            if detail_url not in self.url_set:
-                self.url_set.add(detail_url)
+            if detail_url not in self.url_dict:
+                self.url_dict[obj.text()] = activation.avid()
                 activation.output(engine.LwObject("abf_detail_url", [], "application/text", detail_url, None))
             else:
+                # the activation shares its output with the first
+                activation.share_activation(self.url_dict[obj.text()])
                 print("DUPLICATE_URL: "+detail_url)
             # TODO: implement minimality testing through env
             # if True:

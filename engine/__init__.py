@@ -41,6 +41,9 @@ class Activation:
         self.job = None
         self.activation = None
 
+    def avid(self):
+        return self.activation.avid()
+
     def start_activation(self):
         if not(self.activation is None):
             raise Exception("Start already started activation")
@@ -49,16 +52,23 @@ class Activation:
             self.job = self.db.get_job(self.db_activity.jid())
         self.inobj = []
         self.lwoutobj = []
+        self.shared_avid = None
         self.db.add_log(self.activation.avid(), "activation.start", "")
 
     def finish_activation(self):
-        outobj = []
-        for o in self.lwoutobj:
-            outobj.append(self.create_object(o))
-        self.db.set_activation_graph(self.activation, self.inobj, outobj)
+        if self.shared_avid is None:
+            outobj = []
+            for o in self.lwoutobj:
+                outobj.append(self.create_object(o))
+        else:
+            outobj = None
+        self.db.set_activation_graph(self.activation, self.inobj, outobj, self.shared_avid)
         self.activation.set_status('f')
         self.db.add_log(self.activation.avid(), "activation.finish", "")
         self.reset_activation()
+
+    def share_activation(self, avid):
+        self.shared_avid = avid
 
     def reset_activation(self):
         self.activation = None

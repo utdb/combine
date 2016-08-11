@@ -199,14 +199,18 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_object", ex)
 
-    def set_activation_graph(self, activation, inseq, outseq):
+    def set_activation_graph(self, activation, inseq, outseq, shared_avid):
         try:
             cur = self.conn.cursor()
             for n in inseq:
                 cur.execute("INSERT INTO activation_in  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
-            for n in outseq:
-                cur.execute("INSERT INTO activation_out  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
-            self.conn.commit()
+            if outseq is None:
+                cur.execute("INSERT INTO activation_out (select %s, oid FROM activation_out WHERE avid=%s);",[activation.avid(), shared_avid])
+
+            else:
+                for n in outseq:
+                    cur.execute("INSERT INTO activation_out  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
+                self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
 
