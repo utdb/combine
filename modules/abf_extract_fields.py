@@ -45,7 +45,7 @@ def abf_extract_body_fields(html_body):
 class AbfExtractFields(engine.Activity):
 
     def handle(self, activation, obj):
-        print("EXTRACTING: "+str(obj.oid()))
+        # print("EXTRACTING: "+str(obj.oid()))
         activation.input(obj)
         abf_storage = obj.text()
         html_header, html_body = abf_storage.split('\n--\n', 1)

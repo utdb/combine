@@ -34,6 +34,13 @@ def abf_build_detail_url(product):
 
 class AbfGetDetailUrl(engine.Activity):
 
+    def setup(self, args):
+        # create a set of generated url's by the activity
+        self.url_set = set()
+        # store all previously generated url's in the set
+        for obj in self.objects_out():
+            s.add(obj.text())
+
     def handle(self, activation, obj):
         activation.input(obj)
         query_page = abf_search_page(obj.text())
@@ -43,7 +50,11 @@ class AbfGetDetailUrl(engine.Activity):
                 # Assuming only a single value per key:
                 bag[t['Key']] = t['Value']
             detail_url = abf_build_detail_url(bag)
-            activation.output(engine.LwObject("abf_detail_url", [], "application/text", detail_url, None))
+            if detail_url not in self.url_set:
+                self.url_set.add(detail_url)
+                activation.output(engine.LwObject("abf_detail_url", [], "application/text", detail_url, None))
+            else:
+                print("DUPLICATE_URL: "+detail_url)
             # TODO: implement minimality testing through env
             # if True:
                 # return

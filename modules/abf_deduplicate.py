@@ -13,7 +13,7 @@ class AbfDeduplicate(engine.Activity):
         self.all_entities = {}
 
     def compare_to_one(self, activation, new_oid, new_dict, old_oid, old_dict):
-        # print(new_oid, old_oid)
+        print(new_oid, old_oid)
         self
 
     def compare_to_all(self, activation, new_oid, new_dict):
@@ -42,7 +42,7 @@ class AbfDeduplicate(engine.Activity):
         json_out = json.dumps([t_url['cluster_id'], oid], indent='   ')
         # print(json_out)
         activation.output(engine.LwObject("abf_entity_cluster", [], "application/json", json_out, None))
-
+        
 
 def get_handler(context):
     return AbfDeduplicate(context)

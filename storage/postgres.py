@@ -289,6 +289,15 @@ class PgActivity(PgDictWrapper):
         for row in cur.fetchall():
             self.trigger.append((row[1], row[2]))
 
+    def objects_out(self):
+        cur = self.db.conn.cursor()
+        cur.execute('SELECT oid FROM activity_objects where jid=%s AND module=%s;',[self.jid(),self.module()])
+        rows = cur.fetchall()
+        self.db.conn.commit()
+        for row in rows:
+            yield self.db.get_object(row[0])
+
+
 
 class PgActivityTrigger(PgDictWrapper):
 

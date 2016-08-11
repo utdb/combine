@@ -91,6 +91,9 @@ class Activity:
     def triggers(self):
         return self.db_activity.trigger
 
+    def objects_out(self):
+        return self.db_activity.objects_out()
+
     def process_object(self, o):
         logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
         #
