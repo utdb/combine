@@ -101,6 +101,9 @@ class Activity:
     def triggers(self):
         return self.db_activity.trigger
 
+    def objects_in(self):
+        return self.db_activity.objects_in()
+
     def objects_out(self):
         return self.db_activity.objects_out()
 

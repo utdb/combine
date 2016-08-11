@@ -44,6 +44,9 @@ def create_bearings_schedule(configfile):
     db.add_activity(job,
                     "modules.abf_extract_fields", "",
                     (["abf_detail_page", []], ))
+    db.add_activity(job,
+                    "modules.rfc-x-abf-cmp", "",
+                    (["rfc_entity", []], ["abf_entity", []] ))
     #
     db.add_object(job, None, "rfc_entity_seed", [], "application/text", "./data/rfc.in.test.json", None)
     job.start()

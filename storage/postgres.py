@@ -293,6 +293,16 @@ class PgActivity(PgDictWrapper):
         for row in cur.fetchall():
             self.trigger.append((row[1], row[2]))
 
+
+    def objects_in(self):
+        cur = self.db.conn.cursor()
+        # TODO: remove object from next query, hunt missing tuples
+        cur.execute('SELECT activation_in.oid FROM activation, activation_in, object WHERE activation.aid=%s AND activation.avid = activation_in.avid AND activation_in.oid=object.oid;',[self.aid(),])
+        rows = cur.fetchall()
+        self.db.conn.commit()
+        for row in rows:
+            yield self.db.get_object(row[0])
+
     def objects_out(self):
         cur = self.db.conn.cursor()
         cur.execute('SELECT oid FROM activity_objects where jid=%s AND module=%s;',[self.jid(),self.module()])
@@ -348,7 +358,7 @@ class PgJob(PgDictWrapper):
     def delete_objects(self, activity=None):
         cur = self.db.conn.cursor()
         if activity is None:
-            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;',[self.jid()])
+            cur.xecute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;',[self.jid()])
         else:
             cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;',[self.jid(),activity])
         recursive_stat = """
