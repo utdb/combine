@@ -39,12 +39,12 @@ class AbfGetDetailUrl(engine.Activity):
         self.url_dict = {}
         # store all previously generated url's with his oid container
         for obj in self.objects_out():
-            self.url_dict[obj.text()] = [obj.oid()]
+            self.url_dict[obj.raw_data()] = [obj.oid()]
 
     def handle_simple(self, obj):
         # activation.input(obj)
         result = []
-        rfc_fields = json.loads(obj.text())
+        rfc_fields = obj.json_data()
         rfc_item = rfc_fields[2]
         query_page = abf_search_page(rfc_item)
         for p in query_page['Products']:

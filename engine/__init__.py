@@ -9,11 +9,11 @@ from engine.scheduler import Scheduler
 
 class LwObject:
 
-    def __init__(self, a_kindtags, a_metadata, a_text, a_data):
+    def __init__(self, a_kindtags, a_metadata, a_raw_data, a_json_data="{}"):
         self.a_kindtags = a_kindtags
         self.a_metadata = a_metadata
-        self.a_text = a_text
-        self.a_data = a_data
+        self.a_raw_data = a_raw_data
+        self.a_json_data = a_json_data
         self._delayed_oid_container = [-1]
 
     def lightweight(self):
@@ -25,11 +25,11 @@ class LwObject:
     def metadata(self):
         return self.a_metadata
 
-    def text(self):
-        return self.a_text
+    def raw_data(self):
+        return self.a_raw_data
 
-    def data(self):
-        return self.a_data
+    def json_data(self):
+        return self.a_json_data
 
     def delayed_oid_container(self):
         return self._delayed_oid_container

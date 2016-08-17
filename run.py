@@ -38,15 +38,15 @@ def create_bearings_schedule(configfile):
     db.add_activity(job,
                     "modules.abf_detail_url", "",
                     ([{'kind': 'rfc_entity', 'tags': []}, ] ))
-    # db.add_activity(job,
-                    # "modules.abf_fetch", "",
-                    # ([{'kind': "abf_detail_url", 'tags': []}, ] ))
-    # db.add_activity(job,
-                    # "modules.abf_extract_fields", "",
-                    # ([{'kind': "abf_detail_page", 'tags': []}, ] ))
-    # db.add_activity(job,
-                    # "modules.rfc-x-abf-cmp", "",
-                    # ([{'kind': "rfc_entity", 'tags': []}, {'kind': "abf_entity", 'tags': []} ))
+    db.add_activity(job,
+                    "modules.abf_fetch", "",
+                    ([{'kind': "abf_detail_url", 'tags': []}, ] ))
+    db.add_activity(job,
+                    "modules.abf_extract_fields", "",
+                    ([{'kind': "abf_detail_page", 'tags': []}, ] ))
+    db.add_activity(job,
+                    "modules.rfc-x-abf-cmp", "",
+                    ([{'kind': "rfc_entity", 'tags': []}, {'kind': "abf_entity", 'tags': []} ] ))
     db.add_seed_data(job, [engine.LwObject({'kind':'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None),])
     job.start()
     db.closedb()

@@ -48,9 +48,12 @@ class PostgresConnection:
                       avid         BIGINT,
                       metadata     JSONB,
                       kindtags     JSONB,
-                      text         TEXT,
-                      data         BYTEA
+                      -- TODO, raw data must be BYTEA
+                      raw_data     TEXT,
+                      json_data    JSONB
                   );
+                  CREATE INDEX okindginp ON object USING gin (kindtags jsonb_path_ops);
+                  -- CREATE INDEX okindginp ON object USING gin (jdoc jsonb_path_ops);
                   CREATE TABLE activity (
                       aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
@@ -62,6 +65,7 @@ class PostgresConnection:
                       aid       BIGINT,
                       kindtags  JSONB
                   );
+                  CREATE INDEX atkindginp ON activity_trigger USING gin (kindtags);
                   CREATE TABLE activation (
                       avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime  TIMESTAMP,
@@ -172,7 +176,7 @@ class PostgresConnection:
             seed = []
             for obj in objects:
                 if obj.lightweight():
-                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.text(), obj.data(), commit=False)
+                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.raw_data(), obj.json_data(), commit=False)
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))
@@ -194,14 +198,14 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def create_object(self, job, activation, kindtags, metadata, text, data, commit=True):
+    def create_object(self, job, activation, kindtags, metadata, raw_data, json_data, commit=True):
         try:
             if activation is None:
                 avid = 0
             else:
                 avid = activation.avid()
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, text, data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), text, data])
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, raw_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), raw_data, json.dumps(json_data)])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             if commit:

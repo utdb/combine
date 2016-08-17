@@ -21,13 +21,12 @@ class SeedJsonHandler(engine.Activity):
     def handle_simple(self, obj):
         # activation.input(obj)
         # read the seeds from the file in the start seed file
-        with open(obj.text()) as data_file:    
+        with open(obj.raw_data()) as data_file:    
             data = json.load(data_file)
         result = []
         for item in data:
-            json_rfc_fields = json.dumps(item, indent='   ')
-            print("seed_json: generate: "+json_rfc_fields)
-            result.append(engine.LwObject({'kind':self.kind, 'tags':self.tags}, {'Content-Type' : 'application/text', 'encoding' : 'utf-8'}, json_rfc_fields, None))
+            print("seed_json: generate: "+json.dumps(item, indent='   '))
+            result.append(engine.LwObject({'kind':self.kind, 'tags':self.tags}, {'Content-Type' : 'application/text', 'encoding' : 'utf-8'}, "", item))
         return result
 
 
