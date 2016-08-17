@@ -26,7 +26,7 @@ class SeedJsonHandler(engine.Activity):
         result = []
         for item in data:
             json_rfc_fields = json.dumps(item, indent='   ')
-            # print("seed_json: generate: "+json_rfc_fields)
+            print("seed_json: generate: "+json_rfc_fields)
             result.append(engine.LwObject(self.kind, self.tags, "application/text", json_rfc_fields, None))
         return result
 

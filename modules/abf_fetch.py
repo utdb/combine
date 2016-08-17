@@ -9,7 +9,7 @@ class AbfFetch(engine.Activity):
     def handle_simple(self, obj):
         detail_url = obj.text()
         detail_domain = detail_url.split("//")[-1].split("/")[0]
-        # print("FETCH: "+detail_url)
+        print("FETCH: "+detail_url)
         throttle.wait_for(detail_domain)
         result = requests.get(detail_url)
         result.raise_for_status()

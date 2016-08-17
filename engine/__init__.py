@@ -4,6 +4,7 @@ import traceback
 import logging
 import configparser
 import storage
+from engine.scheduler import Scheduler
 
 
 class LwObject:
@@ -48,6 +49,7 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
+        self.scheduler = context['scheduler']
         self.setup([arg.strip() for arg in context['args'].split(',')])
         logging.info("Activity:"+self.db_activity.module() + " start")
 
@@ -71,7 +73,7 @@ class Activity:
         persistent_out = []
         for obj in outobj:
             if obj.lightweight():
-                newobj = self.db.add_object(self.job, activation, obj.kind(), obj.tags(), obj.content_type(), obj.text(), obj.data())
+                newobj = self.scheduler.create_object(self.job, activation, obj)
                 obj.set_delayed_oid(newobj.oid())
                 persistent_out.append(newobj)
             else:
@@ -109,28 +111,29 @@ class Activity:
         logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") finish")
 
 
-def create_activity(db, job, db_activity):
+def create_activity(db, scheduler, job, db_activity):
     module = __import__(db_activity.module(), fromlist=[''])
-    activity = module.get_handler({'db': db, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
+    activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
     return activity
 
 
-def run_job(configfile, job):
+def run_job(configfile, scheduler, job):
     db = storage.opendb(configfile)
     active = {}
     while True:
-        todo = db.objects_todo(job)
+        todo = scheduler.pending_tasks(job.jid(), 1)
         if len(todo) == 0:
             logging.info("run_job: no more todo")
             break
         else:
             logging.info("run_job: get todo: len="+str(len(todo)))
-        for ao in todo:
-            activity = active.get(ao[0])
+        for task in todo:
+            aid = task[1]
+            activity = active.get(aid)
             if activity is None:
-                activity = create_activity(db, job, db.get_activity(ao[0]))
-                active[ao[0]] = activity
-            activity.process_object(db.get_object(ao[1]))
+                activity = create_activity(db, scheduler, job, db.get_activity(aid))
+                active[aid] = activity
+            activity.process_object(db.get_object(task[2]))
     db.closedb()
 
 
@@ -140,9 +143,11 @@ def start(configfile):
     """
     logging.info("Running the Combine Web Harvesting engine!")
     db = storage.opendb(configfile)
+    scheduler = Scheduler(configfile)
     joblist = []
     for job in db.active_jobs():
-        jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(configfile, job, ))
+        jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(configfile, scheduler, job, ))
+        scheduler.add_job(job)
         joblist.append((job, jobthread))
         jobthread.start()
     # db.closedb() error
