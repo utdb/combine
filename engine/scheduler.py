@@ -115,7 +115,7 @@ class Scheduler:
      
     def create_object(self, job, activation, obj, commit=True):
         if obj.lightweight():
-            newobj = self.db.create_object(job, activation, obj.kind(), obj.tags(), obj.content_type(), obj.text(), obj.data(), commit=False)
+            newobj = self.db.create_object(job, activation, obj.kindtags(), obj.metadata(), obj.text(), obj.data(), commit=False)
         else:
             raise Exception("unexpected persisten object")
         self.schedule_object(newobj)
@@ -124,7 +124,7 @@ class Scheduler:
     def schedule_object(self, obj, commit=True):
         logging.info("scheduler: schedule_object(oid="+str(obj.oid())+")")
         tasks = []
-        for aid in self.get_matching_activities(obj.jid(), obj.kind(), obj.tags()):
+        for aid in self.get_matching_activities(obj.jid(), obj.kindtags()['kind'], set(obj.kindtags()['tags'])):
             newtask = [obj.jid(), aid, obj.oid()]
             tasks.append(newtask)
             logging.info("scheduler: new task "+str(newtask))

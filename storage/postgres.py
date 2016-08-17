@@ -1,6 +1,7 @@
 import sys
 import traceback
 import logging
+import json
 import configparser
 import psycopg2
 import psycopg2.extras
@@ -45,13 +46,11 @@ class PostgresConnection:
                       jid          BIGINT,
                       time         TIMESTAMP,
                       avid         BIGINT,
-                      kind         TEXT,
-                      tags         TEXT[],
-                      content_type TEXT,
+                      metadata     JSONB,
+                      kindtags     JSONB,
                       text         TEXT,
                       data         BYTEA
                   );
-                  CREATE INDEX idx_object_tags on object USING GIN ("tags");
                   CREATE TABLE activity (
                       aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
@@ -61,22 +60,15 @@ class PostgresConnection:
                   );
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
-                      kind      TEXT,
-                      tags      TEXT[]
+                      kindtags  JSONB
                   );
                   CREATE TABLE activation (
                       avid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime  TIMESTAMP,
                       aid         BIGINT,
+                      oid_in      BIGINT[],
+                      oid_out     BIGINT[],
                       status      CHAR
-                  );
-                  CREATE TABLE activation_in (
-                      avid BIGINT,
-                      oid  BIGINT
-                  );
-                  CREATE TABLE activation_out (
-                      avid  BIGINT,
-                      oid   BIGINT
                   );
                   CREATE TABLE log (
                       lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
@@ -91,23 +83,23 @@ class PostgresConnection:
                   CREATE VIEW active_activity AS
                       SELECT activity.aid, activity.module, activity.jid FROM activity, active_job
                       WHERE active_job.jid = activity.jid;
-                  CREATE VIEW active_activity_in AS
-                      SELECT active_activity.aid, activation_in.oid, active_activity.jid FROM active_activity,  activation,  activation_in
-                      WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
-                  CREATE VIEW activity_trigger_oid AS
-                      SELECT activity.aid, object.oid, activity.jid FROM activity,  activity_trigger,  object
-                      WHERE activity.aid = activity_trigger.aid AND activity_trigger.kind = object.kind AND activity_trigger.tags <@ object.tags;
-                  CREATE VIEW objects_todo AS
-                  SELECT * from activity_trigger_oid
-                  EXCEPT SELECT * from active_activity_in;
+                  -- CREATE VIEW active_activity_in AS
+                      -- SELECT active_activity.aid, activation_in.oid, active_activity.jid FROM active_activity,  activation,  activation_in
+                      -- WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
+                  -- CREATE VIEW activity_trigger_oid AS
+                      -- SELECT activity.aid, object.oid, activity.jid FROM activity,  activity_trigger,  object
+                      -- WHERE activity.aid = activity_trigger.aid AND activity_trigger.kind = object.kind AND activity_trigger.tags <@ object.tags;
+                  -- CREATE VIEW objects_todo AS
+                  -- SELECT * from activity_trigger_oid
+                  -- EXCEPT SELECT * from active_activity_in;
                   CREATE VIEW activity_objects AS
                   SELECT activity.module,activity.jid,activation.avid,object.oid
                   FROM activity,activation,object 
                   WHERE activity.aid = activation.aid AND activation.avid = object.avid;
-                  CREATE VIEW avinout AS
-                  SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
-                  FROM activation_in, activation_out
-                  WHERE activation_in.avid = activation_out.avid;
+                  -- CREATE VIEW avinout AS
+                  -- SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
+                  -- FROM activation_in, activation_out
+                  -- WHERE activation_in.avid = activation_out.avid;
                """
             cur.execute(stat)
             self.conn.commit()
@@ -169,7 +161,7 @@ class PostgresConnection:
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in triggerseq:
-                cur.execute("INSERT INTO activity_trigger (aid, kind, tags) VALUES (%s, %s, %s);", [aid, trigger[0], trigger[1]])
+                cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
             self.conn.commit()
             return self.get_activity(aid)
         except Exception as ex:
@@ -180,7 +172,7 @@ class PostgresConnection:
             seed = []
             for obj in objects:
                 if obj.lightweight():
-                    newobj = self.create_object(job, None, obj.kind(), obj.tags(), obj.content_type(), obj.text(), obj.data(), commit=False)
+                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.text(), obj.data(), commit=False)
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))
@@ -202,14 +194,14 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def create_object(self, job, activation, kind, tags, content_type, text, data, commit=True):
+    def create_object(self, job, activation, kindtags, metadata, text, data, commit=True):
         try:
             if activation is None:
                 avid = 0
             else:
                 avid = activation.avid()
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kind, tags, content_type, text, data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s, %s);", [job.jid(), avid, kind, tags, content_type, text, data])
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, text, data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), text, data])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             if commit:
@@ -218,13 +210,12 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_object", ex)
 
-    def set_activation_graph(self, activation, inseq, outseq):
+    def set_activation_graph(self, activation, obj_in, obj_out):
         try:
             cur = self.conn.cursor()
-            for n in inseq:
-                cur.execute("INSERT INTO activation_in  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
-            for n in outseq:
-                cur.execute("INSERT INTO activation_out  (avid, oid) VALUES (%s, %s);", [activation.avid(), n.oid()])
+            oid_in = [ obj.oid() for obj in obj_in]
+            oid_out = [ obj.oid() for obj in obj_out]
+            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s WHERE avid=%s;",[oid_in, oid_out, activation.avid()])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
@@ -306,18 +297,18 @@ class PgActivity(PgDictWrapper):
         super(PgActivity,  self).__init__(db, "select * from activity where aid="+str(idvalue)+";")
         self.trigger = []
         cur = db.conn.cursor()
-        cur.execute("select * from activity_trigger where aid="+str(idvalue)+";")
+        cur.execute("select aid, kindtags from activity_trigger where aid="+str(idvalue)+";")
         for row in cur.fetchall():
-            self.trigger.append((row[1], row[2]))
+            self.trigger.append(row[1])
 
     def activity_triggers(self):
         cur = self.db.conn.cursor()
         # TODO: remove object from next query, hunt missing tuples
-        cur.execute('SELECT kind, tags FROM activity_trigger WHERE aid = %s;',[self.aid(),])
+        cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;',[self.aid(),])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
-            yield [row[0],set(row[1])]
+            yield [(row[0])['kind'], set((row[0])['tags'])]
 
     def objects_in(self):
         cur = self.db.conn.cursor()

@@ -54,7 +54,7 @@ class AbfExtractFields(engine.Activity):
         fields['url'] = header.get("url")
         json_entity_fields = json.dumps(fields, indent='   ')
         # print("EXTRACTING:\n"+json_entity_fields)
-        return [engine.LwObject("abf_entity", [], "application/json", json_entity_fields, None), ]
+        return [engine.LwObject("abf_entity", [], {'Content-Type': 'text/html', 'encoding': 'utf-8'}, json_entity_fields, None), ]
 
 
 def get_handler(context):
