@@ -1,4 +1,5 @@
 import logging
+import configparser
 from collections import defaultdict
 import engine
 import storage
@@ -9,9 +10,21 @@ class Scheduler:
     # HINT, there is also a push mode in this page, no active waits!!!
     def __init__(self, configfile):
         logging.info("scheduler: started")
+        #
+        config = configparser.RawConfigParser()
+        config.read(configfile)
+        self.id = config.get("scheduler", "id")
+        self.mode = config.get("scheduler", "mode")
+        #
         self.db = storage.opendb(configfile)
-        self.destroy()
-        self.create()
+        if self.mode == "start":
+            self.destroy()
+            self.create()
+        elif self.mode == "restart":
+            self.restart()
+        else:
+             # deamons just join
+             self
         # self.match_kind_tags = defaultdict(list)
         self.job_matches = {}
         #
@@ -27,17 +40,18 @@ class Scheduler:
             # When task is finished state record is deleted
             stat = """
                 CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, state INT DEFAULT 0);
-                CREATE OR replace FUNCTION public.pending_tasks (integer, integer) RETURNS SETOF task AS
+                CREATE TABLE task_location (aid BIGSERIAL, name VARCHAR(32));
+                CREATE OR replace FUNCTION public.pending_tasks (integer, varchar, integer) RETURNS SETOF task AS
                 $$
                 DECLARE
                     r task % rowtype;
                 BEGIN
                     LOCK TABLE task IN EXCLUSIVE MODE;
                     FOR r IN
-                        SELECT * FROM task
-                        WHERE jid = $1 AND state = 0
+                        SELECT * FROM task, task_location
+                        WHERE jid = $1 AND state = 0 AND task.aid = task_location.aid AND (name = '*' OR name = $2)
                         ORDER BY id ASC
-                        LIMIT $2
+                        LIMIT $3
                     LOOP
                         UPDATE task SET state=1 WHERE id=r.id RETURNING * INTO r;
                         RETURN NEXT r;
@@ -57,6 +71,7 @@ class Scheduler:
             cur = self.db.conn.cursor()
             stat = """
                 DROP TABLE IF EXISTS task CASCADE;
+                DROP TABLE IF EXISTS task_location CASCADE;
             """
             cur.execute(stat)
             self.db.conn.commit()
@@ -67,6 +82,18 @@ class Scheduler:
     def restart(self):
         print("TODO: SCHEDULER RESTART NOT IMPLEMENTED YET")
 
+    def set_task_location(self, aid, name, commit = True):
+        cur = self.db.conn.cursor()
+        cur.execute("INSERT INTO task_location (aid, name) VALUES (%s, %s);", [aid, name])
+        if  commit:
+            cur = self.db.conn.commit()
+
+    def allow_distribution(self, aid, commit = True):
+        cur = self.db.conn.cursor()
+        cur.execute("UPDATE task_location SET name = %s WHERE aid = %s;", ['*', aid])
+        if  commit:
+            cur = self.db.conn.commit()
+
     def add_job(self, job):
         logging.info("scheduler: add_job(jid="+str(job.jid())+")")
         if job.jid() in self.job_matches:
@@ -75,8 +102,10 @@ class Scheduler:
         #
         for activity in job.activities():
            for trigger in activity.activity_triggers():
-               kind = trigger[0]
-               match_kind_tags[kind].append([activity.aid(),trigger[1]])
+                kind = trigger[0]
+                match_kind_tags[kind].append([activity.aid(),trigger[1]])
+                if self.mode == "start":
+                    self.set_task_location(activity.aid(), self.id, False)
         if not job.initialized():
             for oid in job.seed():
                 self.schedule_object(self.db.get_object(oid), False)
@@ -107,7 +136,7 @@ class Scheduler:
 
     def pending_tasks(self, jid, n, commit=True):
         cur = self.db.conn.cursor()
-        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s);",[jid, n])
+        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);",[jid,self.id, n])
         res = [ [row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:
             self.db.conn.commit()

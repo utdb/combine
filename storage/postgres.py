@@ -52,7 +52,7 @@ class PostgresConnection:
                       raw_data     TEXT,
                       json_data    JSONB
                   );
-                  CREATE INDEX okindginp ON object USING gin (kindtags jsonb_path_ops);
+                  CREATE INDEX okindginp ON object USING gin (kindtags);
                   -- CREATE INDEX okindginp ON object USING gin (jdoc jsonb_path_ops);
                   CREATE TABLE activity (
                       aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),

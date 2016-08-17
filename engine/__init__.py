@@ -52,6 +52,9 @@ class Activity:
     def setup(self, args):
         logging.info("Activity:"+self.db_activity.module() + " setup() ignored")
 
+    def allow_distribution(self):
+        self.scheduler.allow_distribution(self.db_activity.aid())
+
     def triggers(self):
         return self.db_activity.trigger
 
@@ -112,12 +115,13 @@ def create_activity(db, scheduler, job, db_activity):
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
     return activity
 
+BATCHSIZE = 1
 
 def run_job(configfile, scheduler, job):
     db = storage.opendb(configfile)
     active = {}
     while True:
-        todo = scheduler.pending_tasks(job.jid(), 1)
+        todo = scheduler.pending_tasks(job.jid(), BATCHSIZE)
         if len(todo) == 0:
             logging.info("run_job: no more todo")
             break
@@ -130,6 +134,7 @@ def run_job(configfile, scheduler, job):
                 activity = create_activity(db, scheduler, job, db.get_activity(aid))
                 active[aid] = activity
             activity.process_object(db.get_object(task[2]))
+        scheduler.rm_tasks(todo)
     db.closedb()
 
 
@@ -138,6 +143,7 @@ def start(configfile):
     Run the Combine engine
     """
     logging.info("Running the Combine Web Harvesting engine!")
+    #
     db = storage.opendb(configfile)
     scheduler = Scheduler(configfile)
     joblist = []
