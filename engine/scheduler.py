@@ -1,4 +1,5 @@
 import logging
+import socket
 import configparser
 from collections import defaultdict
 import engine
@@ -16,6 +17,10 @@ class Scheduler:
         config.read(configfile)
         self.id = config.get("scheduler", "id")
         self.mode = config.get("scheduler", "mode")
+        self.batchsize = int(config.get("scheduler", "batchsize"))
+        #
+        if self.id == "slave":
+            self.id = socket.gethostbyaddr(socket.gethostname())[0]
         #
         self.db = storage.opendb(configfile)
         if self.mode == "start":
@@ -135,7 +140,9 @@ class Scheduler:
             cur.execute("DELETE FROM task WHERE jid = %s AND aid = %s AND  oid = %s;", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
         cur = self.db.conn.commit()
 
-    def pending_tasks(self, jid, n, commit=True):
+    def pending_tasks(self, jid, n=None, commit=True):
+        if n is None:
+            n = self.batchsize
         cur = self.db.conn.cursor()
         cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, self.id, n])
         res = [[row[0], row[1], row[2]] for row in cur.fetchall()]

@@ -1,4 +1,6 @@
 import sys
+import os.path
+import argparse
 import logging
 import storage
 import engine
@@ -62,7 +64,14 @@ logging.basicConfig(filename='combine.log', level=logging.INFO)
 # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 if __name__ == '__main__':
-    configfile = "combine.local.cfg"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-c', '--config', metavar="configfile",  default='./combine.local.cfg', help="specify path of the confi file", required=False)
+    args = vars(parser.parse_args())
+    configfile = args['config']
+    if not os.path.isfile(configfile):
+        print("Bad configfile: "+configfile)
+        sys.exit()
+    #
     # create_example_schedule(configfile)
     create_bearings_schedule(configfile)
     # open_bearings_schedule(configfile)

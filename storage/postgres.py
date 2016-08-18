@@ -14,6 +14,7 @@ class PostgresConnection:
         logging.info("Open Postgres DB: "+str(self.conn))
 
     def closedb(self):
+        self.conn.commit()
         self.conn.close()
         logging.info("Close Postgres DB: "+str(self.conn))
 
@@ -77,9 +78,8 @@ class PostgresConnection:
                   CREATE TABLE log (
                       lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time      TIMESTAMP,
-                      xid       BIGINT,
                       event     TEXT,
-                      data      TEXT
+                      message   JSONB
                   );
                   -- select avid, oid from activation, unnest(oid_out) oid  WHERE 58=ANY(oid_out);
 
@@ -226,10 +226,10 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
 
-    def add_log(self, xid, event, data):
+    def add_log(self, event, message):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO log (time, xid, event, data) VALUES (clock_timestamp(), %s, %s, %s);", [xid, event, data])
+            cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [event, json.dumps(message)])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
             self.conn.commit()

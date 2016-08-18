@@ -45,6 +45,7 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
+        self.module = self.db_activity.module()
         self.scheduler = context['scheduler']
         self.setup([arg.strip() for arg in context['args'].split(',')])
         logging.info("Activity:"+self.db_activity.module() + " start")
@@ -87,7 +88,8 @@ class Activity:
     def handle_complex(self, obj):
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
-        self.db.add_log(activation.avid(), "activation.finish", "")
+        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.id, 'oid': obj.oid(), 'avid': activation.avid()})
+        # self.db.add_log(activation.avid(), "activation.finish", "")
 
     def process_object(self, o):
         logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
@@ -98,12 +100,14 @@ class Activity:
                          + " on oid[" + str(o.oid()) + "]: " + str(ex)\
                          + '\n' + traceback.format_exc()
             # self.handler.activation.set_status('e')
-            self.db.add_log(self.db_activity.aid(), "activation.error", error_str)
+            # self.db.add_log(self.db_activity.aid(), "activation.error", error_str)
+            self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.id, 'error': error_str})
             logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") error")
             logging.error(self.db_activity.module()+":"+error_str)
             if (True):
                 # TODO do not stop here, be sensible
                 print(error_str, file=sys.stderr)
+                self.db.closedb()
                 sys.exit()
             return
         #
@@ -115,14 +119,12 @@ def create_activity(db, scheduler, job, db_activity):
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
     return activity
 
-BATCHSIZE = 1
-
-
 def run_job(configfile, scheduler, job):
     db = storage.opendb(configfile)
     active = {}
     while True:
-        todo = scheduler.pending_tasks(job.jid(), BATCHSIZE)
+        # get the pending jobs, scheduler say how much you will get
+        todo = scheduler.pending_tasks(job.jid())
         if len(todo) == 0:
             logging.info("run_job: no more todo")
             break
