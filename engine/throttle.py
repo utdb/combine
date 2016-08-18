@@ -1,5 +1,6 @@
 import time
 
+
 class Throttle:
     """
     This throttling class is not thread-safe.
@@ -21,13 +22,16 @@ DEFAULT_DELAY = 1.0
 
 global_throttle = {}
 
+
 def add_throttle(domainname, min_delay):
     global_throttle[domainname] = Throttle(min_delay)
+
 
 def get_throttle(domainname):
     if global_throttle.get(domainname) is None:
         add_throttle(domainname, DEFAULT_DELAY)
     return global_throttle[domainname]
+
 
 def wait_for(domainname):
     get_throttle(domainname).wait()

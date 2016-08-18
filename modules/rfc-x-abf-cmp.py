@@ -23,9 +23,9 @@ class RfcXAbfCompare(engine.Activity):
             print(str(e_rfc))
             print("<<<>>>")
             print(str(e_abf))
-        out_obj= engine.LwObject({'kind': "rfc_x_abf", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "INCOMPLETE", {})
-        self.new_activation([rfc_in,abf_in],[out_obj, ])
- 
+        out_obj = engine.LwObject({'kind': "rfc_x_abf", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "INCOMPLETE", {})
+        self.new_activation([rfc_in, abf_in], [out_obj, ])
+
     def handle_entity(self, obj, do_compare):
         oid = obj.oid()
         kindtags = obj.kindtags()
@@ -49,6 +49,7 @@ class RfcXAbfCompare(engine.Activity):
 
     def handle_complex(self, obj):
         return self.handle_entity(obj, True)
+
 
 def get_handler(context):
     return RfcXAbfCompare(context)

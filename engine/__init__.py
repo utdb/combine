@@ -35,7 +35,7 @@ class LwObject:
         return self._delayed_oid_container
 
     def set_delayed_oid(self, v):
-        self._delayed_oid_container[0] = v;
+        self._delayed_oid_container[0] = v
 
 
 class Activity:
@@ -86,7 +86,7 @@ class Activity:
 
     def handle_complex(self, obj):
         outobj = self.handle_simple(obj)
-        activation = self.new_activation([obj,],outobj)
+        activation = self.new_activation([obj, ], outobj)
         self.db.add_log(activation.avid(), "activation.finish", "")
 
     def process_object(self, o):
@@ -116,6 +116,7 @@ def create_activity(db, scheduler, job, db_activity):
     return activity
 
 BATCHSIZE = 1
+
 
 def run_job(configfile, scheduler, job):
     db = storage.opendb(configfile)

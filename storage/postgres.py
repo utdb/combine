@@ -81,6 +81,8 @@ class PostgresConnection:
                       event     TEXT,
                       data      TEXT
                   );
+                  -- select avid, oid from activation, unnest(oid_out) oid  WHERE 58=ANY(oid_out);
+
                   CREATE VIEW active_job AS
                       SELECT * from job
                       WHERE (stoptime IS NULL) AND NOT (starttime IS NULL);
@@ -98,7 +100,7 @@ class PostgresConnection:
                   -- EXCEPT SELECT * from active_activity_in;
                   CREATE VIEW activity_objects AS
                   SELECT activity.module,activity.jid,activation.avid,object.oid
-                  FROM activity,activation,object 
+                  FROM activity,activation,object
                   WHERE activity.aid = activation.aid AND activation.avid = object.avid;
                   -- CREATE VIEW avinout AS
                   -- SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
@@ -182,7 +184,7 @@ class PostgresConnection:
                     print("add_seed_data: Unexpected Object: "+str(obj))
             seed.append(newobj.oid())
             cur = self.conn.cursor()
-            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;",[seed,job.jid()])
+            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, job.jid()])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("add_seed_data", ex)
@@ -217,9 +219,9 @@ class PostgresConnection:
     def set_activation_graph(self, activation, obj_in, obj_out):
         try:
             cur = self.conn.cursor()
-            oid_in = [ obj.oid() for obj in obj_in]
-            oid_out = [ obj.oid() for obj in obj_out]
-            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s WHERE avid=%s;",[oid_in, oid_out, activation.avid()])
+            oid_in = [obj.oid() for obj in obj_in]
+            oid_out = [obj.oid() for obj in obj_out]
+            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s WHERE avid=%s;", [oid_in, oid_out, activation.avid()])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
@@ -295,6 +297,7 @@ class PgObject(PgDictWrapper):
     def lightweight(self):
         return False
 
+
 class PgActivity(PgDictWrapper):
 
     def __init__(self, db, idvalue):
@@ -308,7 +311,7 @@ class PgActivity(PgDictWrapper):
     def activity_triggers(self):
         cur = self.db.conn.cursor()
         # TODO: remove object from next query, hunt missing tuples
-        cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;',[self.aid(),])
+        cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;', [self.aid(), ])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
@@ -317,7 +320,7 @@ class PgActivity(PgDictWrapper):
     def objects_in(self):
         cur = self.db.conn.cursor()
         # TODO: remove object from next query, hunt missing tuples
-        cur.execute('SELECT activation_in.oid FROM activation, activation_in, object WHERE activation.aid=%s AND activation.avid = activation_in.avid AND activation_in.oid=object.oid;',[self.aid(),])
+        cur.execute('SELECT activation_in.oid FROM activation, activation_in, object WHERE activation.aid=%s AND activation.avid = activation_in.avid AND activation_in.oid=object.oid;', [self.aid(), ])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
@@ -325,12 +328,11 @@ class PgActivity(PgDictWrapper):
 
     def objects_out(self):
         cur = self.db.conn.cursor()
-        cur.execute('SELECT oid FROM activity_objects where jid=%s AND module=%s;',[self.jid(),self.module()])
+        cur.execute('SELECT oid FROM activity_objects where jid=%s AND module=%s;', [self.jid(), self.module()])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
             yield self.db.get_object(row[0])
-
 
 
 class PgActivityTrigger(PgDictWrapper):
@@ -363,8 +365,9 @@ class PgContext(PgDictWrapper):
 class PgJob(PgDictWrapper):
 
     def __init__(self, db, idvalue=None, name=None):
-        super(PgJob,  self).__init__(db, 'select * from job where ' +
-                (('jid='+str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) +";")
+        super(PgJob,  self).__init__(db,
+                'select * from job where ' +
+                (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
         self.idvalue = self.jid()
 
     def start(self):
@@ -377,7 +380,7 @@ class PgJob(PgDictWrapper):
 
     def activities(self):
         cur = self.db.conn.cursor()
-        cur.execute('SELECT aid FROM activity where jid=%s;',[self.jid(), ])
+        cur.execute('SELECT aid FROM activity where jid=%s;', [self.jid(), ])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
@@ -386,9 +389,9 @@ class PgJob(PgDictWrapper):
     def delete_objects(self, activity=None):
         cur = self.db.conn.cursor()
         if activity is None:
-            cur.xecute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;',[self.jid()])
+            cur.xecute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;', [self.jid()])
         else:
-            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;',[self.jid(),activity])
+            cur.execute('SELECT avid, oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;', [self.jid(), activity])
         recursive_stat = """
             WITH RECURSIVE avid_oid(avid,oid) AS (
                 SELECT * from delobj_base

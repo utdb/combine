@@ -55,7 +55,7 @@ class AbfGetDetailUrl(engine.Activity):
             detail_url = abf_build_detail_url(bag)
             # print("DETAIL_URL: "+detail_url)
             if detail_url not in self.url_dict:
-                newobj = engine.LwObject({'kind':"abf_detail_url", 'tags':[]}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None)
+                newobj = engine.LwObject({'kind': "abf_detail_url", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None)
                 self.url_dict[detail_url] = newobj.delayed_oid_container()
                 result.append(newobj)
             else:

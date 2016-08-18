@@ -4,6 +4,7 @@ from collections import defaultdict
 import engine
 import storage
 
+
 class Scheduler:
 
     # inspired by http://stacktory.com/blog/2015/why-not-postgres-1-multi-consumer-fifo-push-queue.html
@@ -23,8 +24,8 @@ class Scheduler:
         elif self.mode == "restart":
             self.restart()
         else:
-             # deamons just join
-             self
+            # deamons just join
+            self
         # self.match_kind_tags = defaultdict(list)
         self.job_matches = {}
         #
@@ -63,7 +64,7 @@ class Scheduler:
             cur.execute(stat)
             self.db.conn.commit()
         except Exception as ex:
-             storage.handle_db_error("create Scheduler", ex)
+            storage.handle_db_error("create Scheduler", ex)
 
     def destroy(self):
         logging.info("scheduler: destroy()")
@@ -76,22 +77,22 @@ class Scheduler:
             cur.execute(stat)
             self.db.conn.commit()
         except Exception as ex:
-             storage.handle_db_error("destroy scheduler", ex)
+            storage.handle_db_error("destroy scheduler", ex)
         self
 
     def restart(self):
         print("TODO: SCHEDULER RESTART NOT IMPLEMENTED YET")
 
-    def set_task_location(self, aid, name, commit = True):
+    def set_task_location(self, aid, name, commit=True):
         cur = self.db.conn.cursor()
         cur.execute("INSERT INTO task_location (aid, name) VALUES (%s, %s);", [aid, name])
-        if  commit:
+        if commit:
             cur = self.db.conn.commit()
 
-    def allow_distribution(self, aid, commit = True):
+    def allow_distribution(self, aid, commit=True):
         cur = self.db.conn.cursor()
         cur.execute("UPDATE task_location SET name = %s WHERE aid = %s;", ['*', aid])
-        if  commit:
+        if commit:
             cur = self.db.conn.commit()
 
     def add_job(self, job):
@@ -101,9 +102,9 @@ class Scheduler:
         match_kind_tags = self.job_matches[job.jid()] = defaultdict(list)
         #
         for activity in job.activities():
-           for trigger in activity.activity_triggers():
+            for trigger in activity.activity_triggers():
                 kind = trigger[0]
-                match_kind_tags[kind].append([activity.aid(),trigger[1]])
+                match_kind_tags[kind].append([activity.aid(), trigger[1]])
                 if self.mode == "start":
                     self.set_task_location(activity.aid(), self.id, False)
         if not job.initialized():
@@ -123,25 +124,25 @@ class Scheduler:
 
     def add_tasks(self, s_jidaidoid, commit=True):
         cur = self.db.conn.cursor()
-        for jidaidoid in s_jidaidoid: 
+        for jidaidoid in s_jidaidoid:
             cur.execute("INSERT INTO task (jid, aid, oid) VALUES (%s, %s, %s);", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
-        if  commit:
+        if commit:
             cur = self.db.conn.commit()
 
     def rm_tasks(self, s_jidaidoid):
         cur = self.db.conn.cursor()
-        for jidaidoid in s_jidaidoid: 
+        for jidaidoid in s_jidaidoid:
             cur.execute("DELETE FROM task WHERE jid = %s AND aid = %s AND  oid = %s;", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
         cur = self.db.conn.commit()
 
     def pending_tasks(self, jid, n, commit=True):
         cur = self.db.conn.cursor()
-        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);",[jid,self.id, n])
-        res = [ [row[0], row[1], row[2]] for row in cur.fetchall()]
+        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, self.id, n])
+        res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:
             self.db.conn.commit()
         return res
-     
+
     def create_object(self, job, activation, obj, commit=True):
         if obj.lightweight():
             newobj = self.db.create_object(job, activation, obj.kindtags(), obj.metadata(), obj.raw_data(), obj.json_data(), commit=False)
