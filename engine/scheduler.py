@@ -179,8 +179,9 @@ class Scheduler:
         for row in rows:
             print(row[0], row[1], row[2])
 
-    def restart_activity(self, activity, commit=True):
-        oid_in = activity.oids_in(False)
+    def reset_activity(self, activity, commit=True):
+        # oid_in = activity.oids_in(False)
+        oid_triggered = activity.oids_triggered(False)
         cur = self.db.conn.cursor()
         cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
@@ -189,7 +190,7 @@ class Scheduler:
         aid = activity.aid()
         jid = activity.jid()
         tasks = []
-        for oid in oid_in:
+        for oid in oid_triggered:
             newtask = [jid, aid, oid]
             tasks.append(newtask)
             logging.info("scheduler: new task "+str(newtask))

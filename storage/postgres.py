@@ -337,7 +337,8 @@ class PgActivity(PgDictWrapper):
 
     def activity_objects(self, view, commit):
         cur = self.db.conn.cursor()
-        cur.execute('SELECT oid FROM '+view+' WHERE aid = %s;', [self.aid(), ])
+        print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
+        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
         rows = cur.fetchall()
         if commit:
             self.db.conn.commit()
@@ -368,6 +369,9 @@ class PgActivity(PgDictWrapper):
 
     def oids_out(self, commit=False):
         return self.activity_oids('activity_out', commit)
+
+    def oids_triggered(self, commit=False):
+        return self.activity_oids('activity_trigger_oid', commit)
 
 
 class PgActivityTrigger(PgDictWrapper):

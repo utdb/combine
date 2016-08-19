@@ -10,10 +10,8 @@ class RfcXAbfCompare(engine.Activity):
         self.abf = {}
         self.rfc = {}
         # now read the objects which were already read in prev session
-        if False:
-            # TODO, fix objects_in()
-            for obj in self.objects_in():
-                self.handle_entity(obj, False)
+        for obj in self.objects_in():
+            self.handle_entity(obj, False)
 
     def compare(self, rfc_oid, e_rfc, abf_oid, e_abf):
         rfc_in = self.get_object(rfc_oid)
@@ -32,6 +30,7 @@ class RfcXAbfCompare(engine.Activity):
         kind = kindtags['kind']
         fields = obj.json_data()
         # TODO: objects are not duplcate anymore
+        # print("INCOMING: ", obj.kindtags())
         if kind == "rfc_entity":
             if oid not in self.rfc:
                 self.rfc[oid] = fields
