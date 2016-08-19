@@ -52,7 +52,7 @@ class AbfExtractFields(engine.Activity):
             fields[field[0]] = field[1]
         fields['url'] = html_header.get("url")
         # print("EXTRACTING:\n"+json.dumps(fields, indent='   '))
-        return [engine.LwObject({'kind': 'abf_entity', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", fields), ]
+        return [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", fields), ]
 
 
 def get_handler(context):

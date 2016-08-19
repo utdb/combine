@@ -144,6 +144,7 @@ class Scheduler:
         if n is None:
             n = self.batchsize
         cur = self.db.conn.cursor()
+        # TODO master should first get all master jobs and after that the "*"
         cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, self.id, n])
         res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:

@@ -25,7 +25,7 @@ class AbfFetch(engine.Activity):
             "headers": dict(result.headers)
             }
         text = json.dumps(metadata, indent='   ') + '\n--\n' + result.text
-        result = [engine.LwObject({'kind': "abf_detail_page", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, text, metadata), ]
+        result = [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, text, metadata), ]
         if False:
             file = open("./cache/fetch"+str(obj.oid()), "w")
             file.write(text)

@@ -60,7 +60,8 @@ class PostgresConnection:
                       createtime TIMESTAMP,
                       jid        BIGINT,
                       module     TEXT,
-                      args       TEXT
+                      args       TEXT,
+                      kindtags_out JSONB
                   );
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
@@ -89,19 +90,21 @@ class PostgresConnection:
                   CREATE VIEW active_activity AS
                       SELECT activity.aid, activity.module, activity.jid FROM activity, active_job
                       WHERE active_job.jid = activity.jid;
-                  -- CREATE VIEW active_activity_in AS
-                      -- SELECT active_activity.aid, activation_in.oid, active_activity.jid FROM active_activity,  activation,  activation_in
-                      -- WHERE active_activity.aid = activation.aid AND activation.avid = activation_in.avid;
-                  -- CREATE VIEW activity_trigger_oid AS
-                      -- SELECT activity.aid, object.oid, activity.jid FROM activity,  activity_trigger,  object
-                      -- WHERE activity.aid = activity_trigger.aid AND activity_trigger.kind = object.kind AND activity_trigger.tags <@ object.tags;
-                  -- CREATE VIEW objects_todo AS
-                  -- SELECT * from activity_trigger_oid
-                  -- EXCEPT SELECT * from active_activity_in;
+                  CREATE VIEW active_activity_in AS
+                      SELECT active_activity.aid, oid, active_activity.jid FROM active_activity,  activation, unnest(activation.oid_in) oid
+                      WHERE active_activity.aid = activation.aid;
+                  CREATE VIEW activity_trigger_oid AS
+                      SELECT activity.aid, object.oid, activity.jid FROM activity,  activity_trigger,  object
+                      WHERE activity.aid = activity_trigger.aid AND text(activity_trigger.kindtags::json->'kind') = text(object.kindtags::json->'kind');
+                  -- INCOMPLETE TODO ALSO <@ on the tags
+                  CREATE VIEW objects_todo AS
+                  SELECT * from activity_trigger_oid
+                  EXCEPT SELECT * from active_activity_in;
                   CREATE VIEW activity_objects AS
                   SELECT activity.module,activity.jid,activation.avid,object.oid
                   FROM activity,activation,object
                   WHERE activity.aid = activation.aid AND activation.avid = object.avid;
+                  -- TODO FOR RECURSIVE 
                   -- CREATE VIEW avinout AS
                   -- SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
                   -- FROM activation_in, activation_out
@@ -127,8 +130,6 @@ class PostgresConnection:
                   DROP TABLE IF EXISTS activity    CASCADE;
                   DROP TABLE IF EXISTS activity_trigger    CASCADE;
                   DROP TABLE IF EXISTS activation    CASCADE;
-                  DROP TABLE IF EXISTS activation_in    CASCADE;
-                  DROP TABLE IF EXISTS activation_out    CASCADE;
                   DROP TABLE IF EXISTS log        CASCADE;
                   DROP SEQUENCE IF EXISTS combine_global_id CASCADE;
                """
@@ -160,13 +161,15 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_job", ex)
 
-    def add_activity(self, job, module, args, triggerseq):
+    def add_activity(self, job, module, args, kindtags_in, kindtags_out):
+        add_missing_tags(kindtags_in)
+        add_missing_tags(kindtags_out)
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime, jid, module, args) VALUES (clock_timestamp(), %s, %s, %s);", [job.jid(), module, args])
+            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out) VALUES (clock_timestamp(), %s, %s, %s, %s);", [job.jid(), module, args, json.dumps(kindtags_out)])
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
-            for trigger in triggerseq:
+            for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
             self.conn.commit()
             return self.get_activity(aid)
@@ -202,6 +205,8 @@ class PostgresConnection:
 
     def create_object(self, job, activation, kindtags, metadata, raw_data, json_data, commit=True):
         try:
+            if 'tags' not in kindtags:
+                kindtags['tags'] = []
             if activation is None:
                 avid = 0
             else:
@@ -214,7 +219,7 @@ class PostgresConnection:
                 self.conn.commit()
             return self.get_object(oid)
         except Exception as ex:
-            handle_db_error("add_object", ex)
+            handle_db_error("create_object", ex)
 
     def set_activation_graph(self, activation, obj_in, obj_out):
         try:
@@ -389,7 +394,7 @@ class PgJob(PgDictWrapper):
     def delete_objects(self, activity=None):
         cur = self.db.conn.cursor()
         if activity is None:
-            cur.xecute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;', [self.jid()])
+            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;', [self.jid()])
         else:
             cur.execute('SELECT avid, oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;', [self.jid(), activity])
         recursive_stat = """
@@ -414,6 +419,11 @@ def handle_db_error(what,  ex):
     print(what+": "+str(ex),  file=sys.stderr)
     traceback.print_exc(file=sys.stdout)
     sys.exit()
+
+def add_missing_tags(kindtags_seq):
+    for kindtags in kindtags_seq:
+        if 'tags' not in kindtags:
+            kindtags['tags'] = []
 
 
 def opendb(configfile):

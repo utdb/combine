@@ -45,6 +45,8 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
+        self.kindtags_out = self.db_activity.kindtags_out()
+        self.kindtags_default = self.kindtags_out[0]
         self.module = self.db_activity.module()
         self.scheduler = context['scheduler']
         self.setup([arg.strip() for arg in context['args'].split(',')])
@@ -89,7 +91,6 @@ class Activity:
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
         self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.id, 'oid': obj.oid(), 'avid': activation.avid()})
-        # self.db.add_log(activation.avid(), "activation.finish", "")
 
     def process_object(self, o):
         logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
