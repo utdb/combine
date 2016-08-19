@@ -120,8 +120,7 @@ def create_activity(db, scheduler, job, db_activity):
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
     return activity
 
-def run_job(configfile, scheduler, job):
-    db = storage.opendb(configfile)
+def run_job(configfile, scheduler, job, db):
     active = {}
     while True:
         # get the pending jobs, scheduler say how much you will get
@@ -139,21 +138,31 @@ def run_job(configfile, scheduler, job):
                 active[aid] = activity
             activity.process_object(db.get_object(task[2]))
         scheduler.rm_tasks(todo)
-    db.closedb()
 
 
-def start(configfile):
-    """
-    Run the Combine engine
-    """
-    logging.info("Running the Combine Web Harvesting engine!")
-    #
-    db = storage.opendb(configfile)
-    scheduler = Scheduler(configfile)
-    joblist = []
-    for job in db.active_jobs():
-        jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(configfile, scheduler, job, ))
-        scheduler.add_job(job)
-        joblist.append((job, jobthread))
-        jobthread.start()
-    # db.closedb() error
+class Engine:
+
+    def __init__(self, configfile):
+        """
+        Run the Combine engine
+        """
+        logging.info("Running the Combine Web Harvesting engine!")
+        #
+        self.configfile = configfile
+        self.db = storage.opendb(configfile)
+        self.dbjobs = [dbj for dbj in self.db.active_jobs()]
+        self.scheduler = Scheduler(configfile, self.db)
+        for job in self.dbjobs:
+            self.scheduler.add_job(job)
+
+    def run(self):
+        self.joblist = []
+        for job in self.dbjobs:
+            run_job(self.configfile, self.scheduler, job, self.db)
+            # TODO: reimplement threading
+            # jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(self.configfile, self.scheduler, job, self.db ))
+            # self.joblist.append((job, jobthread))
+            # jobthread.start()
+  
+    def stop(self):
+        self.db.closedb()

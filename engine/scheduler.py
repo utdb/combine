@@ -1,3 +1,4 @@
+import sys
 import logging
 import socket
 import configparser
@@ -10,7 +11,7 @@ class Scheduler:
 
     # inspired by http://stacktory.com/blog/2015/why-not-postgres-1-multi-consumer-fifo-push-queue.html
     # HINT, there is also a push mode in this page, no active waits!!!
-    def __init__(self, configfile):
+    def __init__(self, configfile, db):
         logging.info("scheduler: started")
         #
         config = configparser.RawConfigParser()
@@ -22,7 +23,8 @@ class Scheduler:
         if self.id == "slave":
             self.id = socket.gethostbyaddr(socket.gethostname())[0]
         #
-        self.db = storage.opendb(configfile)
+        # self.db = storage.opendb(configfile)
+        self.db = db
         if self.mode == "start":
             self.destroy()
             self.create()
@@ -115,6 +117,7 @@ class Scheduler:
         if not job.initialized():
             for oid in job.seed():
                 self.schedule_object(self.db.get_object(oid), False)
+                job.set_initialized()
         self.db.conn.commit()
 
     def get_matching_activities(self, jid, kind, tags):
@@ -132,7 +135,7 @@ class Scheduler:
         for jidaidoid in s_jidaidoid:
             cur.execute("INSERT INTO task (jid, aid, oid) VALUES (%s, %s, %s);", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
         if commit:
-            cur = self.db.conn.commit()
+            self.db.conn.commit()
 
     def rm_tasks(self, s_jidaidoid):
         cur = self.db.conn.cursor()
@@ -167,3 +170,30 @@ class Scheduler:
             tasks.append(newtask)
             logging.info("scheduler: new task "+str(newtask))
         self.add_tasks(tasks, commit)
+
+    def print_tasks(self, header='TASKS'):
+        print(header+':')
+        cur = self.db.conn.cursor()
+        cur.execute('SELECT jid, aid, oid FROM task;')
+        rows = cur.fetchall()
+        for row in rows:
+            print(row[0], row[1], row[2])
+
+    def restart_activity(self, activity, commit=True):
+        oid_in = activity.oids_in(False)
+        cur = self.db.conn.cursor()
+        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])
+        cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
+        cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
+        #
+        aid = activity.aid()
+        jid = activity.jid()
+        tasks = []
+        for oid in oid_in:
+            newtask = [jid, aid, oid]
+            tasks.append(newtask)
+            logging.info("scheduler: new task "+str(newtask))
+        self.add_tasks(tasks, False)
+        if commit:
+            self.db.conn.commit()
+

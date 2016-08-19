@@ -101,14 +101,27 @@ class PostgresConnection:
                   SELECT * from activity_trigger_oid
                   EXCEPT SELECT * from active_activity_in;
                   CREATE VIEW activity_objects AS
-                  SELECT activity.module,activity.jid,activation.avid,object.oid
-                  FROM activity,activation,object
-                  WHERE activity.aid = activation.aid AND activation.avid = object.avid;
-                  -- TODO FOR RECURSIVE 
-                  -- CREATE VIEW avinout AS
-                  -- SELECT activation_in.avid, activation_in.oid AS oid_in, activation_out.oid as oid_out
-                  -- FROM activation_in, activation_out
-                  -- WHERE activation_in.avid = activation_out.avid;
+                      SELECT activity.module,activity.jid,activation.avid,object.oid
+                      FROM activity,activation,object
+                      WHERE activity.aid = activation.aid AND activation.avid = object.avid;
+                  --
+                  CREATE VIEW avinout AS
+                      SELECT avid, oidin, oidout
+                      FROM activation, unnest(activation.oid_in) oidin, unnest(activation.oid_out) oidout;
+                  CREATE VIEW activity_in AS
+                      SELECT activity.aid, activation.avid, oid
+                      FROM activity, activation, unnest(activation.oid_in) oid
+                      WHERE activity.aid = activation.aid;
+                  CREATE VIEW activity_out AS
+                      SELECT activity.aid, activation.avid, oid
+                      FROM activity, activation, unnest(activation.oid_out) oid
+                      WHERE activity.aid = activation.aid;
+                  CREATE RECURSIVE VIEW activity_out_all (aid, avid, oid) AS
+                      select aid, avid, oid from activity_out
+                  UNION ALL
+                      SELECT base.aid, delta.avid, delta.oidout
+                      FROM activity_out_all base, avinout delta
+                      WHERE base.oid = delta.oidin;
                """
             cur.execute(stat)
             self.conn.commit()
@@ -322,22 +335,39 @@ class PgActivity(PgDictWrapper):
         for row in rows:
             yield [(row[0])['kind'], set((row[0])['tags'])]
 
-    def objects_in(self):
+    def activity_objects(self, view, commit):
         cur = self.db.conn.cursor()
-        # TODO: remove object from next query, hunt missing tuples
-        cur.execute('SELECT activation_in.oid FROM activation, activation_in, object WHERE activation.aid=%s AND activation.avid = activation_in.avid AND activation_in.oid=object.oid;', [self.aid(), ])
+        cur.execute('SELECT oid FROM '+view+' WHERE aid = %s;', [self.aid(), ])
         rows = cur.fetchall()
-        self.db.conn.commit()
+        if commit:
+            self.db.conn.commit()
         for row in rows:
             yield self.db.get_object(row[0])
 
-    def objects_out(self):
-        cur = self.db.conn.cursor()
-        cur.execute('SELECT oid FROM activity_objects where jid=%s AND module=%s;', [self.jid(), self.module()])
-        rows = cur.fetchall()
+    def objects_in(self, commit=False):
+        return self.activity_objects('activity_in', commit)
+
+    def objects_out(self, commit=False):
+        return self.activity_objects('activity_out', commit)
+
+    def objects_out_all(self, commit=False):
+        return self.activity_objects('activity_out_all', commit)
+
+    def activity_oids(self, view, commit):
         self.db.conn.commit()
-        for row in rows:
-            yield self.db.get_object(row[0])
+        cur = self.db.conn.cursor()
+        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
+        rows = cur.fetchall()
+        if commit:
+            self.db.conn.commit()
+        oid_seq = [row[0] for row in rows]
+        return oid_seq
+
+    def oids_in(self, commit=False):
+        return self.activity_oids('activity_in', commit)
+
+    def oids_out(self, commit=False):
+        return self.activity_oids('activity_out', commit)
 
 
 class PgActivityTrigger(PgDictWrapper):
@@ -383,35 +413,30 @@ class PgJob(PgDictWrapper):
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
-    def activities(self):
+    def set_initialized(self):
+        try:
+            cur = self.db.conn.cursor()
+            cur.execute("UPDATE job SET initialized=TRUE WHERE jid="+str(self.idvalue)+";")
+            self.db.conn.commit()
+        except Exception as ex:
+            handle_db_error("job:start: ", ex)
+
+    def activities(self, module=None):
         cur = self.db.conn.cursor()
-        cur.execute('SELECT aid FROM activity where jid=%s;', [self.jid(), ])
+        if module is None:
+            cur.execute('SELECT aid FROM activity where jid=%s;', [self.jid(), ])
+        else:
+            cur.execute('SELECT aid FROM activity where jid=%s AND activity.module = %s;', [self.jid(), module])
         rows = cur.fetchall()
         self.db.conn.commit()
         for row in rows:
             yield self.db.get_activity(row[0])
 
-    def delete_objects(self, activity=None):
+    def delete_objects(self, activity):
         cur = self.db.conn.cursor()
-        if activity is None:
-            cur.execute('SELECT avid,oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s ;', [self.jid()])
-        else:
-            cur.execute('SELECT avid, oid INTO TEMPORARY delobj_base FROM activity_objects where jid=%s AND module=%s;', [self.jid(), activity])
-        recursive_stat = """
-            WITH RECURSIVE avid_oid(avid,oid) AS (
-                SELECT * from delobj_base
-            UNION ALL
-                SELECT delta.avid, delta.oid_out
-                FROM avid_oid base, avinout delta
-                WHERE base.oid = delta.oid_in
-                )
-            SELECT * INTO TEMPORARY delobj FROM avid_oid;
-        """
-        cur.execute(recursive_stat)
+        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
-        cur.execute('DELETE FROM activation_in WHERE avid IN (select avid from delobj);')
-        cur.execute('DELETE FROM activation_out WHERE avid IN (select avid from delobj);')
-        cur.execute('DELETE FROM activation WHERE avid IN (select avid from delobj);')
+        cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
         self.db.conn.commit()
 
 
