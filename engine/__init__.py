@@ -74,7 +74,7 @@ class Activity:
     def get_object(self, oid):
         return self.db.get_object(oid)
 
-    def new_activation(self, inobj, outobj):
+    def new_activation(self, inobj, outobj, inrsrc= None, outrsrc= None):
         activation = self.db.add_activation(self.db_activity.aid())
         persistent_out = []
         for obj in outobj:
@@ -84,9 +84,16 @@ class Activity:
                 persistent_out.append(newobj)
             else:
                 persistent_out.append(mix)
-        self.db.set_activation_graph(activation, inobj, persistent_out)
+        self.db.set_activation_graph(activation, inobj, persistent_out, inrsrc, outrsrc)
         activation.set_status('f')
         return activation
+
+    def activity_label(self):
+        dba = self.db_activity
+        return dba.module() + '_' + str(dba.aid())
+
+    def get_resource(self, label, create):
+        return self.db.get_resource(label, create)
 
     def handle_simple(self, obj):
         raise Exception("handle_simple() missing")

@@ -44,24 +44,23 @@ class Scheduler:
         logging.info("scheduler: create()")
         try:
             cur = self.db.conn.cursor()
-            # Create table of pending tasks, state 0 is pending, state 1 is busy
+            # Create table of pending tasks, assigned attr show if task is assigned
             # When task is finished state record is deleted
             stat = """
-                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, state INT DEFAULT 0);
-                CREATE TABLE task_location (aid BIGSERIAL, name VARCHAR(32));
-                CREATE OR replace FUNCTION public.pending_tasks (integer, varchar, integer) RETURNS SETOF task AS
+                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BOOLEAN DEFAULT FALSE, stateless BOOLEAN DEFAULT TRUE);
+                CREATE OR replace FUNCTION public.pending_tasks (integer, integer) RETURNS SETOF task AS
                 $$
                 DECLARE
                     r task % rowtype;
                 BEGIN
                     LOCK TABLE task IN EXCLUSIVE MODE;
                     FOR r IN
-                        SELECT * FROM task, task_location
-                        WHERE jid = $1 AND state = 0 AND task.aid = task_location.aid AND (name = '*' OR name = $2)
+                        SELECT * FROM task
+                        WHERE jid = $1 AND assigned = FALSE
                         ORDER BY id ASC
-                        LIMIT $3
+                        LIMIT $2
                     LOOP
-                        UPDATE task SET state=1 WHERE id=r.id RETURNING * INTO r;
+                        UPDATE task SET assigned=TRUE WHERE id=r.id RETURNING * INTO r;
                         RETURN NEXT r;
                   END LOOP;
                   RETURN;
@@ -79,7 +78,6 @@ class Scheduler:
             cur = self.db.conn.cursor()
             stat = """
                 DROP TABLE IF EXISTS task CASCADE;
-                DROP TABLE IF EXISTS task_location CASCADE;
             """
             cur.execute(stat)
             self.db.conn.commit()
@@ -89,18 +87,6 @@ class Scheduler:
 
     def restart(self):
         print("TODO: SCHEDULER RESTART NOT IMPLEMENTED YET")
-
-    def set_task_location(self, aid, name, commit=True):
-        cur = self.db.conn.cursor()
-        cur.execute("INSERT INTO task_location (aid, name) VALUES (%s, %s);", [aid, name])
-        if commit:
-            cur = self.db.conn.commit()
-
-    def allow_distribution(self, aid, commit=True):
-        cur = self.db.conn.cursor()
-        cur.execute("UPDATE task_location SET name = %s WHERE aid = %s;", ['*', aid])
-        if commit:
-            cur = self.db.conn.commit()
 
     def add_job(self, job):
         logging.info("scheduler: add_job(jid="+str(job.jid())+")")
@@ -112,8 +98,6 @@ class Scheduler:
             for trigger in activity.activity_triggers():
                 kind = trigger[0]
                 match_kind_tags[kind].append([activity.aid(), trigger[1]])
-                if self.mode == "start":
-                    self.set_task_location(activity.aid(), self.id, False)
         if not job.initialized():
             for oid in job.seed():
                 self.schedule_object(self.db.get_object(oid), False)
@@ -148,7 +132,7 @@ class Scheduler:
             n = self.batchsize
         cur = self.db.conn.cursor()
         # TODO master should first get all master jobs and after that the "*"
-        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, self.id, n])
+        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s);", [jid, n])
         res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:
             self.db.conn.commit()
@@ -180,7 +164,6 @@ class Scheduler:
             print(row[0], row[1], row[2])
 
     def reset_activity(self, activity, commit=True):
-        # oid_in = activity.oids_in(False)
         oid_triggered = activity.oids_triggered(False)
         cur = self.db.conn.cursor()
         cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])

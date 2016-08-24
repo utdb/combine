@@ -29,6 +29,14 @@ class PostgresConnection:
                       description       TEXT
                   );
 
+                  CREATE TABLE resource (
+                      rid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      jid               BIGINT,
+                      label             TEXT UNIQUE,
+                      bytes_data        BYTEA
+                  );
+                  CREATE INDEX resource_label ON resource USING hash (label);
+
                   CREATE TABLE job (
                       jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       cid               BIGINT,
@@ -60,7 +68,8 @@ class PostgresConnection:
                       jid        BIGINT,
                       module     TEXT,
                       args       TEXT,
-                      kindtags_out JSONB
+                      kindtags_out JSONB,
+                      stateless  BOOLEAN DEFAULT TRUE
                   );
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
@@ -73,6 +82,8 @@ class PostgresConnection:
                       aid         BIGINT,
                       oid_in      BIGINT[],
                       oid_out     BIGINT[],
+                      rsrc_in     BIGINT[],
+                      rsrc_out    BIGINT[],
                       status      CHAR
                   );
                   CREATE TABLE log (
@@ -135,6 +146,7 @@ class PostgresConnection:
             cur = self.conn.cursor()
             stat = """
                   DROP TABLE IF EXISTS context    CASCADE;
+                  DROP TABLE IF EXISTS resource    CASCADE;
                   DROP TABLE IF EXISTS job    CASCADE;
                   DROP TABLE IF EXISTS object     CASCADE;
                   DROP TABLE IF EXISTS actions    CASCADE;
@@ -161,6 +173,18 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_context", ex)
 
+    def add_resource(self, label):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO resource (label) VALUES (%s);", [label])
+            cur.execute("select last_value from combine_global_id;")
+            rid = singlevalue(cur)
+            self.conn.commit()
+            return self.get_resource(label=label)
+
+        except Exception as ex:
+            handle_db_error("add_job", ex)
+
     def add_job(self, context, name, description):
         try:
             cur = self.conn.cursor()
@@ -173,12 +197,12 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_job", ex)
 
-    def add_activity(self, job, module, args, kindtags_in, kindtags_out):
+    def add_activity(self, job, module, args, kindtags_in, kindtags_out, stateless=True):
         add_missing_tags(kindtags_in)
         add_missing_tags(kindtags_out)
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out) VALUES (clock_timestamp(), %s, %s, %s, %s);", [job.jid(), module, args, json.dumps(kindtags_out)])
+            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [job.jid(), module, args, json.dumps(kindtags_out), stateless])
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in kindtags_in:
@@ -237,12 +261,23 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("create_object", ex)
 
-    def set_activation_graph(self, activation, obj_in, obj_out):
+    def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in= None, rsrc_out= None):
         try:
             cur = self.conn.cursor()
             oid_in = [obj.oid() for obj in obj_in]
             oid_out = [obj.oid() for obj in obj_out]
-            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s WHERE avid=%s;", [oid_in, oid_out, activation.avid()])
+            #
+            if rsrc_in is not None:
+                rid_in = [rsrc.rid() for rsrc in rsrc_in]
+            else:
+                rid_in = None
+            if rsrc_out is not None:
+                rid_out = [rsrc.rid() for rsrc in rsrc_out]
+            else:
+                rid_out = None
+            #
+            #
+            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rsrc_in=%s, rsrc_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid()])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
@@ -263,6 +298,16 @@ class PostgresConnection:
 
     def get_context(self, cid):
         return PgContext(self, cid)
+
+    def get_resource(self, label, create= False):
+        try:
+            res = PgResource(self, label)
+        except psycopg2.Error as e:
+            if create:
+                res = self.add_resource(label)
+            else:
+                handle_db_error("get_resourceg", str(e))
+        return res
 
     def get_job(self, jid=None, name=None):
         return PgJob(self, jid, name)
@@ -300,6 +345,8 @@ class PgDictWrapper:
         cur = db.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute(sql_statement)
         self.cacherec = cur.fetchone()
+        if self.cacherec is None:
+            raise psycopg2.Error('Object not found: ' + sql_statement)
 
     def __getattr__(self,  name):
 
@@ -407,6 +454,12 @@ class PgContext(PgDictWrapper):
 
     def __init__(self, db, idvalue):
         super(PgContext,  self).__init__(db, "select * from context where cid="+str(idvalue)+";")
+
+
+class PgResource(PgDictWrapper):
+
+    def __init__(self, db, label):
+        super(PgResource,  self).__init__(db, "select * from resource where label=\'"+label+"\';")
 
 
 class PgJob(PgDictWrapper):

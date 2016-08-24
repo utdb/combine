@@ -7,10 +7,6 @@ from engine import throttle
 
 class AbfFetch(engine.Activity):
 
-    def setup(self, args):
-        # this activation can be distributed so allow_distribution
-        self.allow_distribution()
-
     def handle_simple(self, obj):
         detail_url = obj.str_data()
         detail_domain = detail_url.split("//")[-1].split("/")[0]

@@ -50,7 +50,8 @@ def create_bearings_scenario(configfile):
     db.add_activity(job,
                     "modules.rfc-x-abf-cmp", "",
                     ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
-                    ([{'kind': 'UNKOWN'}, ]))
+                    ([{'kind': 'UNKOWN'}, ]),
+                    False)
     db.add_seed_data(job, [engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
     job.start()
     db.closedb()

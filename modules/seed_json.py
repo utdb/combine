@@ -7,8 +7,6 @@ import engine
 class SeedJsonHandler(engine.Activity):
 
     def setup(self, args):
-        self.allow_distribution()
-        #
         parser = argparse.ArgumentParser()
         parser.add_argument('-k', '--kind', required=True)
         parser.add_argument('-t', '--tag', required=True)
@@ -27,7 +25,7 @@ class SeedJsonHandler(engine.Activity):
             data = json.load(data_file)
         result = []
         for item in data:
-            print("seed_json: generate: "+json.dumps(item, indent='   '))
+            # print("seed_json: generate: "+json.dumps(item, indent='   '))
             result.append(engine.LwObject(self.kindtags_default, {'Content-Type': 'application/text', 'encoding': 'utf-8'}, "", None, item))
         return result
 
