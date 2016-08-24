@@ -44,7 +44,7 @@ class AbfGetDetailUrl(engine.Activity):
     def handle_simple(self, obj):
         # activation.input(obj)
         result = []
-        rfc_fields = obj.json_data()
+        rfc_fields = obj.json_data
         rfc_item = rfc_fields[2]
         query_page = abf_search_page(rfc_item)
         for p in query_page['Products']:

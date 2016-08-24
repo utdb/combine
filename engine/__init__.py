@@ -49,18 +49,18 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
-        self.kindtags_out = self.db_activity.kindtags_out()
+        self.kindtags_out = self.db_activity.kindtags_out
         self.kindtags_default = self.kindtags_out[0]
-        self.module = self.db_activity.module()
+        self.module = self.db_activity.module
         self.scheduler = context['scheduler']
         self.setup([arg.strip() for arg in context['args'].split(',')])
-        logging.info("Activity:"+self.db_activity.module() + " start")
+        logging.info("Activity:"+self.db_activity.module + " start")
 
     def setup(self, args):
-        logging.info("Activity:"+self.db_activity.module() + " setup() ignored")
+        logging.info("Activity:"+self.db_activity.module + " setup() ignored")
 
     def allow_distribution(self):
-        self.scheduler.allow_distribution(self.db_activity.aid())
+        self.scheduler.allow_distribution(self.db_activity.aid)
 
     def triggers(self):
         return self.db_activity.trigger
@@ -75,12 +75,12 @@ class Activity:
         return self.db.get_object(oid)
 
     def new_activation(self, inobj, outobj, inrsrc= None, outrsrc= None):
-        activation = self.db.add_activation(self.db_activity.aid())
+        activation = self.db.add_activation(self.db_activity.aid)
         persistent_out = []
         for obj in outobj:
             if obj.lightweight():
                 newobj = self.scheduler.create_object(self.job, activation, obj)
-                obj.set_delayed_oid(newobj.oid())
+                obj.set_delayed_oid(newobj.oid)
                 persistent_out.append(newobj)
             else:
                 persistent_out.append(mix)
@@ -90,7 +90,7 @@ class Activity:
 
     def activity_label(self):
         dba = self.db_activity
-        return dba.module() + '_' + str(dba.aid())
+        return dba.module + '_' + str(dba.aid)
 
     def get_resource(self, label, create):
         return self.db.get_resource(label, create)
@@ -101,21 +101,21 @@ class Activity:
     def handle_complex(self, obj):
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
-        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.id, 'oid': obj.oid(), 'avid': activation.avid()})
+        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.id, 'oid': obj.oid, 'avid': activation.avid})
 
     def process_object(self, o):
-        logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") start")
+        logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") start")
         try:
             self.handle_complex(o)
         except Exception as ex:
-            error_str = "EXCEPTION in module " + self.db_activity.module()\
-                         + " on oid[" + str(o.oid()) + "]: " + str(ex)\
+            error_str = "EXCEPTION in module " + self.db_activity.module\
+                         + " on oid[" + str(o.oid) + "]: " + str(ex)\
                          + '\n' + traceback.format_exc()
             # self.handler.activation.set_status('e')
-            # self.db.add_log(self.db_activity.aid(), "activation.error", error_str)
+            # self.db.add_log(self.db_activity.aid, "activation.error", error_str)
             self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.id, 'error': error_str})
-            logging.info(self.db_activity.module()+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") error")
-            logging.error(self.db_activity.module()+":"+error_str)
+            logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") error")
+            logging.error(self.db_activity.module+":"+error_str)
             if (True):
                 # TODO do not stop here, be sensible
                 print(error_str, file=sys.stderr)
@@ -123,19 +123,19 @@ class Activity:
                 sys.exit()
             return
         #
-        logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid())+", oid="+str(o.oid())+") finish")
+        logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") finish")
 
 
 def create_activity(db, scheduler, job, db_activity):
-    module = __import__(db_activity.module(), fromlist=[''])
-    activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args()})
+    module = __import__(db_activity.module, fromlist=[''])
+    activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args})
     return activity
 
 def run_job(configfile, scheduler, job, db):
     active = {}
     while True:
         # get the pending jobs, scheduler say how much you will get
-        todo = scheduler.pending_tasks(job.jid())
+        todo = scheduler.pending_tasks(job.jid)
         if len(todo) == 0:
             logging.info("run_job: no more todo")
             break

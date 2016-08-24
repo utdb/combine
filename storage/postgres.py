@@ -188,7 +188,7 @@ class PostgresConnection:
     def add_job(self, context, name, description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp());", [context.cid(), name, description])
+            cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp());", [context.cid, name, description])
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.conn.commit()
@@ -202,7 +202,7 @@ class PostgresConnection:
         add_missing_tags(kindtags_out)
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [job.jid(), module, args, json.dumps(kindtags_out), stateless])
+            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [job.jid, module, args, json.dumps(kindtags_out), stateless])
             cur.execute("select last_value from combine_global_id;")
             aid = singlevalue(cur)
             for trigger in kindtags_in:
@@ -221,9 +221,9 @@ class PostgresConnection:
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))
-            seed.append(newobj.oid())
+            seed.append(newobj.oid)
             cur = self.conn.cursor()
-            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, job.jid()])
+            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, job.jid])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("add_seed_data", ex)
@@ -250,9 +250,9 @@ class PostgresConnection:
             if activation is None:
                 avid = 0
             else:
-                avid = activation.avid()
+                avid = activation.avid
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             if commit:
@@ -264,20 +264,20 @@ class PostgresConnection:
     def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in= None, rsrc_out= None):
         try:
             cur = self.conn.cursor()
-            oid_in = [obj.oid() for obj in obj_in]
-            oid_out = [obj.oid() for obj in obj_out]
+            oid_in = [obj.oid for obj in obj_in]
+            oid_out = [obj.oid for obj in obj_out]
             #
             if rsrc_in is not None:
-                rid_in = [rsrc.rid() for rsrc in rsrc_in]
+                rid_in = [rsrc.rid for rsrc in rsrc_in]
             else:
                 rid_in = None
             if rsrc_out is not None:
-                rid_out = [rsrc.rid() for rsrc in rsrc_out]
+                rid_out = [rsrc.rid for rsrc in rsrc_out]
             else:
                 rid_out = None
             #
             #
-            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rsrc_in=%s, rsrc_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid()])
+            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rsrc_in=%s, rsrc_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
@@ -325,7 +325,7 @@ class PostgresConnection:
 
     def objects_todo(self, job):
         cur = self.conn.cursor()
-        cur.execute("SELECT DISTINCT ON (oid) oid, aid from objects_todo where jid="+str(job.jid())+" order by oid;")
+        cur.execute("SELECT DISTINCT ON (oid) oid, aid from objects_todo where jid="+str(job.jid)+" order by oid;")
         return [(row[1], row[0]) for row in cur.fetchall()]
 
 
@@ -341,20 +341,21 @@ def singlevalue(cur):
 class PgDictWrapper:
 
     def __init__(self, db, sql_statement):
-        self.db = db
-        cur = db.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        self._db = db
+        cur = self._db.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         cur.execute(sql_statement)
         self.cacherec = cur.fetchone()
         if self.cacherec is None:
             raise psycopg2.Error('Object not found: ' + sql_statement)
 
+    # now a non function to make Brend happy
     def __getattr__(self,  name):
+        return self.cacherec[name]
 
-        def _try_retrieve(*args,  **kwargs):
-            # logging.info("PgDictWrapper:retrieve dict attr:"+name)
-            return self.cacherec[name]
-
-        return _try_retrieve
+    # incomplete, does not work for internal attr
+    # def __setattr__(self, name, value):
+        # raise psycopg2.Error('NOT IMPLEMENTED')
+        # return self.cacherec[name]
 
 
 class PgObject(PgDictWrapper):
@@ -366,7 +367,7 @@ class PgObject(PgDictWrapper):
         return False
 
     def str_data(self):
-        res = self.bytes_data()
+        res = self.bytes_data
         if res is not None:
             res = bytes(res).decode('utf-8')
         return res
@@ -376,29 +377,29 @@ class PgActivity(PgDictWrapper):
     def __init__(self, db, idvalue):
         super(PgActivity,  self).__init__(db, "select * from activity where aid="+str(idvalue)+";")
         self.trigger = []
-        cur = db.conn.cursor()
+        cur = self._db.conn.cursor()
         cur.execute("select aid, kindtags from activity_trigger where aid="+str(idvalue)+";")
         for row in cur.fetchall():
             self.trigger.append(row[1])
 
     def activity_triggers(self):
-        cur = self.db.conn.cursor()
+        cur = self._db.conn.cursor()
         # TODO: remove object from next query, hunt missing tuples
-        cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;', [self.aid(), ])
+        cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;', [self.aid, ])
         rows = cur.fetchall()
-        self.db.conn.commit()
+        self._db.conn.commit()
         for row in rows:
             yield [(row[0])['kind'], set((row[0])['tags'])]
 
     def activity_objects(self, view, commit):
-        cur = self.db.conn.cursor()
-        # print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
-        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
+        cur = self._db.conn.cursor()
+        # print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
+        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         rows = cur.fetchall()
         if commit:
-            self.db.conn.commit()
+            self._db.conn.commit()
         for row in rows:
-            yield self.db.get_object(row[0])
+            yield self._db.get_object(row[0])
 
     def objects_in(self, commit=False):
         return self.activity_objects('activity_in', commit)
@@ -410,12 +411,12 @@ class PgActivity(PgDictWrapper):
         return self.activity_objects('activity_out_all', commit)
 
     def activity_oids(self, view, commit):
-        self.db.conn.commit()
-        cur = self.db.conn.cursor()
-        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
+        self._db.conn.commit()
+        cur = self._db.conn.cursor()
+        cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         rows = cur.fetchall()
         if commit:
-            self.db.conn.commit()
+            self._db.conn.commit()
         oid_seq = [row[0] for row in rows]
         return oid_seq
 
@@ -443,9 +444,9 @@ class PgActivation(PgDictWrapper):
 
     def set_status(self, status):
         try:
-            cur = self.db.conn.cursor()
+            cur = self._db.conn.cursor()
             cur.execute("UPDATE activation SET status=\'"+status+"\' WHERE avid="+str(self.idvalue)+";")
-            self.db.conn.commit()
+            self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
@@ -468,41 +469,41 @@ class PgJob(PgDictWrapper):
         super(PgJob,  self).__init__(db,
                 'select * from job where ' +
                 (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
-        self.idvalue = self.jid()
+        self.idvalue = self.jid
 
     def start(self):
         try:
-            cur = self.db.conn.cursor()
+            cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET starttime=clock_timestamp(),  stoptime=NULL WHERE jid="+str(self.idvalue)+";")
-            self.db.conn.commit()
+            self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
     def set_initialized(self):
         try:
-            cur = self.db.conn.cursor()
+            cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET initialized=TRUE WHERE jid="+str(self.idvalue)+";")
-            self.db.conn.commit()
+            self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
     def activities(self, module=None):
-        cur = self.db.conn.cursor()
+        cur = self._db.conn.cursor()
         if module is None:
-            cur.execute('SELECT aid FROM activity where jid=%s;', [self.jid(), ])
+            cur.execute('SELECT aid FROM activity where jid=%s;', [self.jid, ])
         else:
-            cur.execute('SELECT aid FROM activity where jid=%s AND activity.module = %s;', [self.jid(), module])
+            cur.execute('SELECT aid FROM activity where jid=%s AND activity.module = %s;', [self.jid, module])
         rows = cur.fetchall()
-        self.db.conn.commit()
+        self._db.conn.commit()
         for row in rows:
-            yield self.db.get_activity(row[0])
+            yield self._db.get_activity(row[0])
 
     def delete_objects(self, activity):
-        cur = self.db.conn.cursor()
-        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])
+        cur = self._db.conn.cursor()
+        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid])
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
         cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
-        self.db.conn.commit()
+        self._db.conn.commit()
 
 
 def handle_db_error(what,  ex):

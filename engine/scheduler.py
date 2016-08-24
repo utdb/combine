@@ -89,17 +89,17 @@ class Scheduler:
         print("TODO: SCHEDULER RESTART NOT IMPLEMENTED YET")
 
     def add_job(self, job):
-        logging.info("scheduler: add_job(jid="+str(job.jid())+")")
-        if job.jid() in self.job_matches:
+        logging.info("scheduler: add_job(jid="+str(job.jid)+")")
+        if job.jid in self.job_matches:
             raise Exception("duplicate job")
-        match_kind_tags = self.job_matches[job.jid()] = defaultdict(list)
+        match_kind_tags = self.job_matches[job.jid] = defaultdict(list)
         #
         for activity in job.activities():
             for trigger in activity.activity_triggers():
                 kind = trigger[0]
-                match_kind_tags[kind].append([activity.aid(), trigger[1]])
-        if not job.initialized():
-            for oid in job.seed():
+                match_kind_tags[kind].append([activity.aid, trigger[1]])
+        if not job.initialized:
+            for oid in job.seed:
                 self.schedule_object(self.db.get_object(oid), False)
                 job.set_initialized()
         self.db.conn.commit()
@@ -147,10 +147,10 @@ class Scheduler:
         return newobj
 
     def schedule_object(self, obj, commit=True):
-        logging.info("scheduler: schedule_object(oid="+str(obj.oid())+")")
+        logging.info("scheduler: schedule_object(oid="+str(obj.oid)+")")
         tasks = []
-        for aid in self.get_matching_activities(obj.jid(), obj.kindtags()['kind'], set(obj.kindtags()['tags'])):
-            newtask = [obj.jid(), aid, obj.oid()]
+        for aid in self.get_matching_activities(obj.jid, obj.kindtags['kind'], set(obj.kindtags['tags'])):
+            newtask = [obj.jid, aid, obj.oid]
             tasks.append(newtask)
             logging.info("scheduler: new task "+str(newtask))
         self.add_tasks(tasks, commit)
@@ -166,12 +166,12 @@ class Scheduler:
     def reset_activity(self, activity, commit=True):
         oid_triggered = activity.oids_triggered(False)
         cur = self.db.conn.cursor()
-        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid()])
+        cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid])
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
         cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
         #
-        aid = activity.aid()
-        jid = activity.jid()
+        aid = activity.aid
+        jid = activity.jid
         tasks = []
         for oid in oid_triggered:
             newtask = [jid, aid, oid]

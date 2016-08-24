@@ -27,10 +27,10 @@ class RfcXAbfCompare(engine.Activity):
         self.new_activation([rfc_in, abf_in], [out_obj, ], [self.rsrc, ], [self.rsrc, ])
 
     def handle_entity(self, obj, do_compare):
-        oid = obj.oid()
-        kindtags = obj.kindtags()
+        oid = obj.oid
+        kindtags = obj.kindtags
         kind = kindtags['kind']
-        fields = obj.json_data()
+        fields = obj.json_data
         # TODO: objects are not duplcate anymore
         # print("INCOMING: ", obj.kindtags())
         if kind == "rfc_entity":

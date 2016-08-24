@@ -45,7 +45,7 @@ def abf_extract_body_fields(html_body):
 class AbfExtractFields(engine.Activity):
 
     def handle_simple(self, obj):
-        html_header = obj.json_data()
+        html_header = obj.json_data
         html_body = obj.str_data()
         fields = {}
         for field in abf_extract_body_fields(html_body):
