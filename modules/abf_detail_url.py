@@ -39,7 +39,7 @@ class AbfGetDetailUrl(engine.Activity):
         self.url_dict = {}
         # store all previously generated url's with his oid container
         for obj in self.objects_out():
-            self.url_dict[obj.raw_data()] = [obj.oid()]
+            self.url_dict[obj.bytes_data()] = [obj.oid()]
 
     def handle_simple(self, obj):
         # activation.input(obj)
@@ -55,7 +55,7 @@ class AbfGetDetailUrl(engine.Activity):
             detail_url = abf_build_detail_url(bag)
             # print("DETAIL_URL: "+detail_url)
             if detail_url not in self.url_dict:
-                newobj = engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None)
+                newobj = engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None, None)
                 self.url_dict[detail_url] = newobj.delayed_oid_container()
                 result.append(newobj)
             else:

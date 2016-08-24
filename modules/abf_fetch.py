@@ -12,7 +12,7 @@ class AbfFetch(engine.Activity):
         self.allow_distribution()
 
     def handle_simple(self, obj):
-        detail_url = obj.raw_data()
+        detail_url = obj.str_data()
         detail_domain = detail_url.split("//")[-1].split("/")[0]
         # print("FETCH: "+detail_url)
         throttle.wait_for(detail_domain)
@@ -25,7 +25,7 @@ class AbfFetch(engine.Activity):
             "headers": dict(result.headers)
             }
         text = json.dumps(metadata, indent='   ') + '\n--\n' + result.text
-        result = [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, text, metadata), ]
+        result = [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, text, None, metadata), ]
         if False:
             file = open("./cache/fetch"+str(obj.oid()), "w")
             file.write(text)

@@ -6,7 +6,6 @@ import configparser
 import psycopg2
 import psycopg2.extras
 
-
 class PostgresConnection:
 
     def __init__(self, conn):
@@ -50,7 +49,7 @@ class PostgresConnection:
                       metadata     JSONB,
                       kindtags     JSONB,
                       -- TODO, raw data must be BYTEA
-                      raw_data     TEXT,
+                      bytes_data   BYTEA,
                       json_data    JSONB
                   );
                   CREATE INDEX okindginp ON object USING gin (kindtags);
@@ -194,7 +193,7 @@ class PostgresConnection:
             seed = []
             for obj in objects:
                 if obj.lightweight():
-                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.raw_data(), obj.json_data(), commit=False)
+                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))
@@ -216,7 +215,11 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def create_object(self, job, activation, kindtags, metadata, raw_data, json_data, commit=True):
+    def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data, commit=True):
+        if str_data is not None:
+            if bytes_data is not None:
+                raise Exception('create_object: str_data and bytes_data cannot have value at same time')
+            bytes_data = str_data.encode('utf-8')
         try:
             if 'tags' not in kindtags:
                 kindtags['tags'] = []
@@ -225,7 +228,7 @@ class PostgresConnection:
             else:
                 avid = activation.avid()
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, raw_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), raw_data, json.dumps(json_data)])
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid(), avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             if commit:
@@ -315,6 +318,11 @@ class PgObject(PgDictWrapper):
     def lightweight(self):
         return False
 
+    def str_data(self):
+        res = self.bytes_data()
+        if res is not None:
+            res = bytes(res).decode('utf-8')
+        return res
 
 class PgActivity(PgDictWrapper):
 
@@ -337,7 +345,7 @@ class PgActivity(PgDictWrapper):
 
     def activity_objects(self, view, commit):
         cur = self.db.conn.cursor()
-        print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
+        # print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
         cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid()) + ';')
         rows = cur.fetchall()
         if commit:

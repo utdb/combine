@@ -21,7 +21,7 @@ class RfcXAbfCompare(engine.Activity):
             print(str(e_rfc))
             print("<<<>>>")
             print(str(e_abf))
-        out_obj = engine.LwObject({'kind': "rfc_x_abf", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "INCOMPLETE", {})
+        out_obj = engine.LwObject({'kind': "rfc_x_abf", 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "INCOMPLETE", None, {})
         self.new_activation([rfc_in, abf_in], [out_obj, ])
 
     def handle_entity(self, obj, do_compare):

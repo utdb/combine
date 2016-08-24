@@ -156,7 +156,7 @@ class Scheduler:
 
     def create_object(self, job, activation, obj, commit=True):
         if obj.lightweight():
-            newobj = self.db.create_object(job, activation, obj.kindtags(), obj.metadata(), obj.raw_data(), obj.json_data(), commit=False)
+            newobj = self.db.create_object(job, activation, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
         else:
             raise Exception("unexpected persisten object")
         self.schedule_object(newobj)

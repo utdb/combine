@@ -46,13 +46,13 @@ class AbfExtractFields(engine.Activity):
 
     def handle_simple(self, obj):
         html_header = obj.json_data()
-        html_body = obj.raw_data()
+        html_body = obj.str_data()
         fields = {}
         for field in abf_extract_body_fields(html_body):
             fields[field[0]] = field[1]
         fields['url'] = html_header.get("url")
         # print("EXTRACTING:\n"+json.dumps(fields, indent='   '))
-        return [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", fields), ]
+        return [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", None, fields), ]
 
 
 def get_handler(context):
