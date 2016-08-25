@@ -56,12 +56,11 @@ class PostgresConnection:
                       avid         BIGINT,
                       metadata     JSONB,
                       kindtags     JSONB,
-                      -- TODO, raw data must be BYTEA
                       bytes_data   BYTEA,
                       json_data    JSONB
                   );
                   CREATE INDEX okindginp ON object USING gin (kindtags);
-                  -- CREATE INDEX okindginp ON object USING gin (jdoc jsonb_path_ops);
+
                   CREATE TABLE activity (
                       aid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       createtime TIMESTAMP,
@@ -69,7 +68,8 @@ class PostgresConnection:
                       module     TEXT,
                       args       TEXT,
                       kindtags_out JSONB,
-                      stateless  BOOLEAN DEFAULT TRUE
+                      stateless  BOOLEAN DEFAULT TRUE,
+                      initialized BOOLEAN DEFAULT FALSE
                   );
                   CREATE TABLE activity_trigger (
                       aid       BIGINT,
@@ -92,8 +92,6 @@ class PostgresConnection:
                       event     TEXT,
                       message   JSONB
                   );
-                  -- select avid, oid from activation, unnest(oid_out) oid  WHERE 58=ANY(oid_out);
-
                   CREATE VIEW active_job AS
                       SELECT * from job
                       WHERE (stoptime IS NULL) AND NOT (starttime IS NULL);
@@ -108,19 +106,8 @@ class PostgresConnection:
                       WHERE activity.aid = activity_trigger.aid AND text(activity_trigger.kindtags::json->'kind') = text(object.kindtags::json->'kind');
                   -- INCOMPLETE TODO ALSO <@ on the tags
                   CREATE VIEW objects_todo AS
-                  SELECT * from activity_trigger_oid
-                  EXCEPT SELECT * from active_activity_in;
-                  CREATE VIEW activity_objects AS
-                      SELECT activity.module,activity.jid,activation.avid,object.oid
-                      FROM activity,activation,object
-                      WHERE activity.aid = activation.aid AND activation.avid = object.avid;
-                  --
-                  CREATE VIEW av_oid_inout AS
-                      SELECT avid, oidin, oidout
-                      FROM activation, unnest(activation.oid_in) oidin, unnest(activation.oid_out) oidout;
-                  CREATE VIEW av_rid_inout AS
-                      SELECT avid, ridin, ridout
-                      FROM activation, unnest(activation.rid_in) ridin, unnest(activation.rid_out) ridout;
+                      SELECT * from activity_trigger_oid
+                      EXCEPT SELECT * from active_activity_in;
                   CREATE VIEW activity_in AS
                       SELECT activity.aid, activation.avid, oid
                       FROM activity, activation, unnest(activation.oid_in) oid
@@ -129,12 +116,6 @@ class PostgresConnection:
                       SELECT activity.aid, activation.avid, oid
                       FROM activity, activation, unnest(activation.oid_out) oid
                       WHERE activity.aid = activation.aid;
-                  CREATE VIEW activation_rid_in AS
-                      SELECT activation.aid, activation.avid, rid
-                      FROM activation, unnest(activation.rid_in) rid;
-                  CREATE VIEW activation_rid_out AS
-                      SELECT activation.avid, rid
-                      FROM activation, unnest(activation.rid_out) rid;
                   CREATE OR REPLACE VIEW activation_graph AS
                       SELECT parent.aid, parent.avid AS avid_parent, child.avid AS avid_child
                       FROM activation AS parent, activation AS child 
@@ -210,37 +191,6 @@ class PostgresConnection:
 
         except Exception as ex:
             handle_db_error("add_job", ex)
-
-    def add_activity(self, job, module, args, kindtags_in, kindtags_out, stateless=True):
-        add_missing_tags(kindtags_in)
-        add_missing_tags(kindtags_out)
-        try:
-            cur = self.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [job.jid, module, args, json.dumps(kindtags_out), stateless])
-            cur.execute("select last_value from combine_global_id;")
-            aid = singlevalue(cur)
-            for trigger in kindtags_in:
-                cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
-            self.conn.commit()
-            return self.get_activity(aid)
-        except Exception as ex:
-            handle_db_error("add_activity", ex)
-
-    def add_seed_data(self, job, objects):
-        try:
-            seed = []
-            for obj in objects:
-                if obj.lightweight():
-                    newobj = self.create_object(job, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
-                else:
-                    newobj = obj
-                    print("add_seed_data: Unexpected Object: "+str(obj))
-            seed.append(newobj.oid)
-            cur = self.conn.cursor()
-            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, job.jid])
-            self.conn.commit()
-        except Exception as ex:
-            handle_db_error("add_seed_data", ex)
 
     def add_activation(self, aid):
         try:
@@ -396,6 +346,15 @@ class PgActivity(PgDictWrapper):
         for row in cur.fetchall():
             self.trigger.append(row[1])
 
+    def set_initialized(self, commit= True):
+        try:
+            cur = self._db.conn.cursor()
+            cur.execute("UPDATE activity SET initialized=TRUE WHERE aid="+str(self.aid)+";")
+            if commit:
+                self._db.conn.commit()
+        except Exception as ex:
+            handle_db_error("activity:set_initialized: ", ex)
+
     def activity_triggers(self):
         cur = self._db.conn.cursor()
         # TODO: remove object from next query, hunt missing tuples
@@ -407,7 +366,6 @@ class PgActivity(PgDictWrapper):
 
     def activity_objects(self, view, commit):
         cur = self._db.conn.cursor()
-        # print('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         rows = cur.fetchall()
         if commit:
@@ -493,11 +451,12 @@ class PgJob(PgDictWrapper):
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
-    def set_initialized(self):
+    def set_initialized(self, commit=True):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET initialized=TRUE WHERE jid="+str(self.idvalue)+";")
-            self._db.conn.commit()
+            if commit:
+                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
@@ -518,6 +477,37 @@ class PgJob(PgDictWrapper):
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
         cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
         self._db.conn.commit()
+
+    def add_activity(self, module, args, kindtags_in, kindtags_out, stateless=True):
+        add_missing_tags(kindtags_in)
+        add_missing_tags(kindtags_out)
+        try:
+            cur = self._db.conn.cursor()
+            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [self.jid, module, args, json.dumps(kindtags_out), stateless])
+            cur.execute("select last_value from combine_global_id;")
+            aid = singlevalue(cur)
+            for trigger in kindtags_in:
+                cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
+            self._db.conn.commit()
+            return self._db.get_activity(aid)
+        except Exception as ex:
+            handle_db_error("add_activity", ex)
+
+    def add_seed_data(self, objects):
+        try:
+            seed = []
+            for obj in objects:
+                if obj.lightweight():
+                    newobj = self._db.create_object(self, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
+                else:
+                    newobj = obj
+                    print("add_seed_data: Unexpected Object: "+str(obj))
+            seed.append(newobj.oid)
+            cur = self._db.conn.cursor()
+            cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, self.jid])
+            self._db.conn.commit()
+        except Exception as ex:
+            handle_db_error("add_seed_data", ex)
 
 
 def handle_db_error(what,  ex):

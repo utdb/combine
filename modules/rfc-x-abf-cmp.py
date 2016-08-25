@@ -31,7 +31,7 @@ class RfcXAbfCompare(engine.Activity):
         kindtags = obj.kindtags
         kind = kindtags['kind']
         fields = obj.json_data
-        # TODO: objects are not duplcate anymore
+        # TODO: objects are not duplicate anymore
         # print("INCOMING: ", obj.kindtags())
         if kind == "rfc_entity":
             if oid not in self.rsrc.rfc:
