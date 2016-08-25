@@ -16,12 +16,11 @@ class Scheduler:
         #
         config = configparser.RawConfigParser()
         config.read(configfile)
-        self.id = config.get("scheduler", "id")
+        self.role = config.get("scheduler", "role")
         self.mode = config.get("scheduler", "mode")
         self.batchsize = int(config.get("scheduler", "batchsize"))
         #
-        if self.id == "slave":
-            self.id = socket.gethostbyaddr(socket.gethostname())[0]
+        # self.id = socket.gethostbyaddr(socket.gethostname())[0]
         #
         # self.db = storage.opendb(configfile)
         self.db = db
@@ -33,12 +32,7 @@ class Scheduler:
         else:
             # deamons just join
             self
-        # self.match_kind_tags = defaultdict(list)
         self.job_matches = {}
-        #
-        # self.add_tasks([[7,11,22],[7,33,44],[7,66,77],[7,88,99]])
-        # self.rm_tasks([[7,11,22],[7,66,77],[7,88,99]])
-        # print("######",str(self.pending_tasks(7,9)))
 
     def create(self):
         logging.info("scheduler: create()")
@@ -47,8 +41,8 @@ class Scheduler:
             # Create table of pending tasks, assigned attr show if task is assigned
             # When task is finished state record is deleted
             stat = """
-                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BOOLEAN DEFAULT FALSE, stateless BOOLEAN DEFAULT TRUE);
-                CREATE OR replace FUNCTION public.pending_tasks (integer, integer) RETURNS SETOF task AS
+                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BOOLEAN DEFAULT FALSE, slavetask BOOLEAN DEFAULT TRUE);
+                CREATE OR replace FUNCTION public.all_pending_tasks (integer, integer) RETURNS SETOF task AS
                 $$
                 DECLARE
                     r task % rowtype;
@@ -66,11 +60,30 @@ class Scheduler:
                   RETURN;
                 END
                 $$ LANGUAGE plpgsql VOLATILE STRICT;
+                CREATE OR replace FUNCTION public.pending_tasks (integer, boolean, integer) RETURNS SETOF task AS
+                $$
+                DECLARE
+                    r task % rowtype;
+                BEGIN
+                    LOCK TABLE task IN EXCLUSIVE MODE;
+                    FOR r IN
+                        SELECT * FROM task
+                        WHERE jid = $1 AND assigned = FALSE AND slavetask = $2
+                        ORDER BY id ASC
+                        LIMIT $3
+                    LOOP
+                        UPDATE task SET assigned=TRUE WHERE id=r.id RETURNING * INTO r;
+                        RETURN NEXT r;
+                  END LOOP;
+                  RETURN;
+                END
+                $$ LANGUAGE plpgsql VOLATILE STRICT;
             """
             cur.execute(stat)
             self.db.conn.commit()
         except Exception as ex:
-            storage.handle_db_error("create Scheduler", ex)
+            print(str(ex))
+            storage.postgres.handle_db_error("create Scheduler", ex)
 
     def destroy(self):
         logging.info("scheduler: destroy()")
@@ -132,7 +145,7 @@ class Scheduler:
             n = self.batchsize
         cur = self.db.conn.cursor()
         # TODO master should first get all master jobs and after that the "*"
-        cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s);", [jid, n])
+        cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
         res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:
             self.db.conn.commit()
@@ -164,19 +177,37 @@ class Scheduler:
             print(row[0], row[1], row[2])
 
     def reset_activity(self, activity, commit=True):
-        oid_triggered = activity.oids_triggered(False)
         cur = self.db.conn.cursor()
+        # first compure recursively all object activations generated from this activity
         cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid])
+        # now compute all resources effected from by these activations
+        cur.execute("SELECT DISTINCT(rid) INTO TEMPORARY delrsrc FROM delobj, activation_rsrc_out WHERE delobj.avid = activation_rsrc_out.avid;")
+        # delete all recursively generated activity objects which should be deleted
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
+        # before all activations are deleted compute all objects which are not 
+        # deleted and have to be retriggered because their input resource was
+        # killed
+        cur.execute('SELECT DISTINCT activation.aid, in_oid AS oid FROM delrsrc, activation, unnest(activation.oid_in) AS in_oid LEFT JOIN delobj ON in_oid = delobj.oid WHERE delrsrc.rid = ANY(rsrc_in) AND delobj.oid IS NULL;')
+        tasks = []
+        rows = cur.fetchall()
+        jid = activity.jid
+        for row in rows:
+            newtask = [jid, row[0], row[1]]
+            tasks.append(newtask)
+            logging.info("scheduler: new resource deduced task "+str(newtask))
+        self.add_tasks(tasks, False)
+        #
+        # now delete all activations
         cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
         #
         aid = activity.aid
         jid = activity.jid
         tasks = []
+        oid_triggered = activity.oids_triggered(False)
         for oid in oid_triggered:
             newtask = [jid, aid, oid]
             tasks.append(newtask)
-            logging.info("scheduler: new task "+str(newtask))
+            logging.info("scheduler: new triggered task "+str(newtask))
         self.add_tasks(tasks, False)
         if commit:
             self.db.conn.commit()

@@ -75,5 +75,5 @@ if __name__ == '__main__':
         print("Bad configfile: "+configfile)
         sys.exit()
     #
-    create_bearings_scenario(configfile)
-    # open_bearings_scenario(configfile)
+    # create_bearings_scenario(configfile)
+    open_bearings_scenario(configfile)

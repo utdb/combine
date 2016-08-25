@@ -126,6 +126,12 @@ class PostgresConnection:
                       SELECT activity.aid, activation.avid, oid
                       FROM activity, activation, unnest(activation.oid_out) oid
                       WHERE activity.aid = activation.aid;
+                  CREATE VIEW activation_rsrc_in AS
+                      SELECT activation.aid, activation.avid, rid
+                      FROM activation, unnest(activation.rsrc_in) rid;
+                  CREATE VIEW activation_rsrc_out AS
+                      SELECT activation.avid, rid
+                      FROM activation, unnest(activation.rsrc_out) rid;
                   CREATE RECURSIVE VIEW activity_out_all (aid, avid, oid) AS
                       select aid, avid, oid from activity_out
                   UNION ALL

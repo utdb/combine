@@ -101,7 +101,7 @@ class Activity:
     def handle_complex(self, obj):
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
-        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.id, 'oid': obj.oid, 'avid': activation.avid})
+        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.role, 'oid': obj.oid, 'avid': activation.avid})
 
     def process_object(self, o):
         logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") start")
@@ -113,7 +113,7 @@ class Activity:
                          + '\n' + traceback.format_exc()
             # self.handler.activation.set_status('e')
             # self.db.add_log(self.db_activity.aid, "activation.error", error_str)
-            self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.id, 'error': error_str})
+            self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.role, 'error': error_str})
             logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") error")
             logging.error(self.db_activity.module+":"+error_str)
             if (True):
