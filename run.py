@@ -41,22 +41,28 @@ def create_bearings_scenario(configfile):
     job.add_activity("modules.abf_fetch", "",
                      ([{'kind': "abf_detail_url"}, ]),
                      ([{'kind': 'abf_detail_page'}, ]))
-    job.add_activity("modules.abf_extract_fields", "",
-                     ([{'kind': "abf_detail_page"}, ]),
-                     ([{'kind': 'abf_entity'}, ]))
+    # job.add_activity("modules.abf_extract_fields", "",
+                     # ([{'kind': "abf_detail_page"}, ]),
+                     # ([{'kind': 'abf_entity'}, ]))
     job.add_activity("modules.rfc-x-abf-cmp", "",
                      ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
                      ([{'kind': 'UNKOWN'}, ]),
                      False)
     job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
     job.start()
-    db.closedb()
     #
     combine_engine = Engine(configfile)
+    combine_engine.run()
+    #
+    job.add_activity("modules.abf_extract_fields", "",
+                     ([{'kind': "abf_detail_page"}, ]),
+                     ([{'kind': 'abf_entity'}, ]))
     combine_engine.run()
     combine_engine.stop()
     #
     # open_bearings_scenario(configfile)
+    #
+    db.closedb()
 
 
 logging.basicConfig(filename='combine.log', level=logging.INFO)

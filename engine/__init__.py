@@ -161,14 +161,13 @@ class Engine:
         #
         self.configfile = configfile
         self.db = storage.opendb(configfile)
-        self.dbjobs = [dbj for dbj in self.db.active_jobs()]
         self.scheduler = Scheduler(configfile, self.db)
-        for job in self.dbjobs:
-            self.scheduler.add_job(job)
 
     def run(self):
         self.joblist = []
-        for job in self.dbjobs:
+        # always reset the scheduler before a run
+        self.scheduler.reset()
+        for job in self.scheduler.active_jobs:
             run_job(self.configfile, self.scheduler, job, self.db)
             # TODO: reimplement threading
             # jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(self.configfile, self.scheduler, job, self.db ))
@@ -177,3 +176,4 @@ class Engine:
   
     def stop(self):
         self.db.closedb()
+

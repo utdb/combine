@@ -357,7 +357,6 @@ class PgActivity(PgDictWrapper):
 
     def activity_triggers(self):
         cur = self._db.conn.cursor()
-        # TODO: remove object from next query, hunt missing tuples
         cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;', [self.aid, ])
         rows = cur.fetchall()
         self._db.conn.commit()
@@ -414,13 +413,14 @@ class PgActivation(PgDictWrapper):
         super(PgActivation,  self).__init__(db, "select * from activation where avid="+str(idvalue)+";")
         self.idvalue = idvalue
 
-    def set_status(self, status):
+    def set_status(self, status, commit= True):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE activation SET status=\'"+status+"\' WHERE avid="+str(self.idvalue)+";")
-            self._db.conn.commit()
+            if commit:
+                self._db.conn.commit()
         except Exception as ex:
-            handle_db_error("job:start: ", ex)
+            handle_db_error("job:set_status: ", ex)
 
 
 class PgContext(PgDictWrapper):
@@ -443,11 +443,12 @@ class PgJob(PgDictWrapper):
                 (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
         self.idvalue = self.jid
 
-    def start(self):
+    def start(self, commit=True):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET starttime=clock_timestamp(),  stoptime=NULL WHERE jid="+str(self.idvalue)+";")
-            self._db.conn.commit()
+            if commit:
+                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
@@ -489,6 +490,7 @@ class PgJob(PgDictWrapper):
             for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
             self._db.conn.commit()
+            # do not forget to moify the cache
             return self._db.get_activity(aid)
         except Exception as ex:
             handle_db_error("add_activity", ex)

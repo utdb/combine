@@ -32,7 +32,16 @@ class Scheduler:
         else:
             # deamons just join
             self
+        #
+        self.reset()
+
+    def reset(self):
         self.job_matches = {}
+        #
+        self.active_jobs = [dbj for dbj in self.db.active_jobs()]
+        for job in self.active_jobs:
+            self.add_job(job)
+
 
     def create(self):
         logging.info("scheduler: create()")
@@ -121,8 +130,8 @@ class Scheduler:
             # the job is initialized, check for uninitialized activities
             for activity in job.activities():
                 if not activity.initialized:
-                    print("INCOMPLETE ACTIVITY MUST BE CHECK INITIALIZED")
-                    trigger_activity(activity, commit=False)
+                    logging.info("scheduler: trigger activity: "+activity.module)
+                    self.trigger_activity(activity, commit=False)
                     activity.set_initialized(commit=False)
         self.db.conn.commit()
 
@@ -187,7 +196,7 @@ class Scheduler:
 
     def trigger_activity(self, activity, commit=True):
         tasks = []
-        jid = activity.aid
+        aid = activity.aid
         jid = activity.jid
         for oid in activity.oids_triggered(commit=False):
             newtask = [jid, aid, oid]
