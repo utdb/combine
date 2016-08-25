@@ -17,6 +17,7 @@ class Scheduler:
         config = configparser.RawConfigParser()
         config.read(configfile)
         self.role = config.get("scheduler", "role")
+        self.slave = not (self.role == "master")
         self.mode = config.get("scheduler", "mode")
         self.batchsize = int(config.get("scheduler", "batchsize"))
         #
@@ -36,11 +37,17 @@ class Scheduler:
         self.reset()
 
     def reset(self):
+        # create the two job/activity info tables
+        self.aid_slave = {}
         self.job_matches = {}
         #
         self.active_jobs = [dbj for dbj in self.db.active_jobs()]
         for job in self.active_jobs:
             self.add_job(job)
+        # finally reset all assigned transactions
+        cur = self.db.conn.cursor()
+        cur.execute("UPDATE task SET assigned=FALSE WHERE assigned = TRUE;");
+        self.db.conn.commit()
 
 
     def create(self):
@@ -121,14 +128,16 @@ class Scheduler:
                 kind = trigger[0]
                 match_kind_tags[kind].append([activity.aid, trigger[1]])
         if not job.initialized:
+            for activity in job.activities():
+                activity.set_initialized(commit=False)
+                self.aid_slave[activity.aid] = activity.stateless
             for oid in job.seed:
                 self.schedule_object(self.db.get_object(oid), False)
                 job.set_initialized(commit=False)
-            for activity in job.activities():
-                activity.set_initialized(commit=False)
         else:
             # the job is initialized, check for uninitialized activities
             for activity in job.activities():
+                self.aid_slave[activity.aid] = activity.stateless
                 if not activity.initialized:
                     logging.info("scheduler: trigger activity: "+activity.module)
                     self.trigger_activity(activity, commit=False)
@@ -142,13 +151,10 @@ class Scheduler:
                 result.add(aid_tags[0])
         return result
 
-    def rm_job(self, job):
-        self
-
     def add_tasks(self, s_jidaidoid, commit=True):
         cur = self.db.conn.cursor()
         for jidaidoid in s_jidaidoid:
-            cur.execute("INSERT INTO task (jid, aid, oid) VALUES (%s, %s, %s);", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
+            cur.execute("INSERT INTO task (jid, aid, oid, slavetask) VALUES (%s, %s, %s, %s);", [jidaidoid[0], jidaidoid[1], jidaidoid[2], self.aid_slave[jidaidoid[1]]])
         if commit:
             self.db.conn.commit()
 
@@ -163,7 +169,10 @@ class Scheduler:
             n = self.batchsize
         cur = self.db.conn.cursor()
         # TODO master should first get all master jobs and after that the "*"
-        cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
+        if self.slave:
+            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, TRUE, %s);", [jid, n])
+        else:
+            cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
         res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
         if commit:
             self.db.conn.commit()
