@@ -82,8 +82,8 @@ class PostgresConnection:
                       aid         BIGINT,
                       oid_in      BIGINT[],
                       oid_out     BIGINT[],
-                      rsrc_in     BIGINT[],
-                      rsrc_out    BIGINT[],
+                      rid_in      BIGINT[],
+                      rid_out     BIGINT[],
                       status      CHAR
                   );
                   CREATE TABLE log (
@@ -115,9 +115,12 @@ class PostgresConnection:
                       FROM activity,activation,object
                       WHERE activity.aid = activation.aid AND activation.avid = object.avid;
                   --
-                  CREATE VIEW avinout AS
+                  CREATE VIEW av_oid_inout AS
                       SELECT avid, oidin, oidout
                       FROM activation, unnest(activation.oid_in) oidin, unnest(activation.oid_out) oidout;
+                  CREATE VIEW av_rid_inout AS
+                      SELECT avid, ridin, ridout
+                      FROM activation, unnest(activation.rid_in) ridin, unnest(activation.rid_out) ridout;
                   CREATE VIEW activity_in AS
                       SELECT activity.aid, activation.avid, oid
                       FROM activity, activation, unnest(activation.oid_in) oid
@@ -126,18 +129,23 @@ class PostgresConnection:
                       SELECT activity.aid, activation.avid, oid
                       FROM activity, activation, unnest(activation.oid_out) oid
                       WHERE activity.aid = activation.aid;
-                  CREATE VIEW activation_rsrc_in AS
+                  CREATE VIEW activation_rid_in AS
                       SELECT activation.aid, activation.avid, rid
-                      FROM activation, unnest(activation.rsrc_in) rid;
-                  CREATE VIEW activation_rsrc_out AS
+                      FROM activation, unnest(activation.rid_in) rid;
+                  CREATE VIEW activation_rid_out AS
                       SELECT activation.avid, rid
-                      FROM activation, unnest(activation.rsrc_out) rid;
-                  CREATE RECURSIVE VIEW activity_out_all (aid, avid, oid) AS
-                      select aid, avid, oid from activity_out
-                  UNION ALL
-                      SELECT base.aid, delta.avid, delta.oidout
-                      FROM activity_out_all base, avinout delta
-                      WHERE base.oid = delta.oidin;
+                      FROM activation, unnest(activation.rid_out) rid;
+                  CREATE OR REPLACE VIEW activation_graph AS
+                      SELECT parent.aid, parent.avid AS avid_parent, child.avid AS avid_child
+                      FROM activation AS parent, activation AS child 
+                      WHERE (parent.oid_out && child.oid_in) OR (parent.rid_out && child.rid_in) AND parent.avid != child.avid; 
+                  CREATE OR REPLACE RECURSIVE VIEW all_avid_descendants (aid, avid) AS
+                      SELECT aid, avid from activation
+                  UNION DISTINCT
+                      SELECT base.aid, graph.avid_child AS avid
+                      FROM all_avid_descendants base, activation_graph graph
+                      WHERE base.avid = graph.avid_parent;
+                      
                """
             cur.execute(stat)
             self.conn.commit()
@@ -283,7 +291,7 @@ class PostgresConnection:
                 rid_out = None
             #
             #
-            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rsrc_in=%s, rsrc_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid])
+            cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rid_in=%s, rid_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid])
             self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
