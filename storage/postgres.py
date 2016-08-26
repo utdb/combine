@@ -11,8 +11,11 @@ class PostgresConnection:
     def __init__(self, conn):
         self.conn = conn
         logging.info("Open Postgres DB: "+str(self.conn))
+        self.max_logs  = 1 # always flush for order at the moment
+        self.log_list  = []
 
     def closedb(self):
+        self._flush_log()
         self.conn.commit()
         self.conn.close()
         logging.info("Close Postgres DB: "+str(self.conn))
@@ -163,6 +166,7 @@ class PostgresConnection:
             cur.execute("INSERT INTO context (name, description) VALUES (%s, %s);", [name, description])
             cur.execute("select last_value from combine_global_id;")
             cid = singlevalue(cur)
+            self.add_log('context.create',{'cid': cid, 'name': name})
             self.conn.commit()
             return self.get_context(cid)
         except Exception as ex:
@@ -186,6 +190,7 @@ class PostgresConnection:
             cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp());", [context.cid, name, description])
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
+            self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
             self.conn.commit()
             return self.get_job(jid=jid)
 
@@ -246,16 +251,26 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
 
-    def add_log(self, event, message):
+    # add a list of log messages [event,message], returns 'lid' of last message
+    def _flush_log(self):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [event, json.dumps(message)])
+            for log in self.log_list:
+                cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(log[1])])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
             self.conn.commit()
+            self.log_list  = []
             return lid
         except Exception as ex:
-            handle_db_error("add_log", ex)
+            handle_db_error("_flush_log", ex)
+
+    def add_log(self, event, message, flush=False):
+            self.log_list.append([event, message])
+            if flush or len(self.log_list) >= self.max_logs:
+                return self._flush_log()
+            else:
+                return None
 
     def get_object(self, oid):
         return PgObject(self, oid)
@@ -489,6 +504,7 @@ class PgJob(PgDictWrapper):
             aid = singlevalue(cur)
             for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
+            self._db.add_log('activity.create',{'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
             self._db.conn.commit()
             # do not forget to moify the cache
             return self._db.get_activity(aid)

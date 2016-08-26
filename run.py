@@ -53,11 +53,11 @@ def create_bearings_scenario(configfile):
     #
     combine_engine = Engine(configfile)
     combine_engine.run()
+    combine_engine.stop()
     #
     # open_bearings_scenario(configfile)
     #
     db.closedb()
-
 
 
 if __name__ == '__main__':

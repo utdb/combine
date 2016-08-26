@@ -1,5 +1,4 @@
 import sys
-import logging
 import socket
 import configparser
 from collections import defaultdict
@@ -12,7 +11,7 @@ class Scheduler:
     # inspired by http://stacktory.com/blog/2015/why-not-postgres-1-multi-consumer-fifo-push-queue.html
     # HINT, there is also a push mode in this page, no active waits!!!
     def __init__(self, configfile, db):
-        logging.info("scheduler: started")
+        self.db = db
         #
         config = configparser.RawConfigParser()
         config.read(configfile)
@@ -26,15 +25,14 @@ class Scheduler:
         self.mode = config.get("scheduler", "mode")
         self.batchsize = int(config.get("scheduler", "batchsize"))
         self.host = socket.gethostbyaddr(socket.gethostname())[0]
+        self.hostid = self.db.add_log('host.start',{'role':self.role, 'host':self.host}, flush=True)
         #
-        logging.info("scheduler: host " + self.host + " started as "+self.role) 
-        #
-        # self.db = storage.opendb(configfile)
-        self.db = db
         if self.mode == "start":
+            self.db.add_log('debug.sched.start',{'hostid':self.hostid})
             self.destroy()
             self.create()
         elif self.mode == "restart":
+            self.db.add_log('debug.sched.restart',{'hostid':self.hostid})
             self.restart()
         else:
             # deamons just join
@@ -43,6 +41,7 @@ class Scheduler:
         self.reset()
 
     def reset(self):
+        self.db.add_log('debug.sched.reset',{'hostid':self.hostid})
         # create the two job/activity info tables
         self.aid_slave = {}
         self.job_matches = {}
@@ -53,19 +52,18 @@ class Scheduler:
         # INCOMPLETE, maybe this code in restart: 
         # finally reset all assigned transactions
         cur = self.db.conn.cursor()
-        cur.execute("UPDATE task SET assigned=FALSE WHERE assigned = TRUE;");
+        cur.execute("UPDATE task SET assigned=NULL WHERE assigned IS NOT NULL;");
         self.db.conn.commit()
 
 
     def create(self):
-        logging.info("scheduler: create()")
         try:
             cur = self.db.conn.cursor()
             # Create table of pending tasks, assigned attr show if task is assigned
             # When task is finished state record is deleted
             stat = """
-                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BOOLEAN DEFAULT FALSE, slavetask BOOLEAN DEFAULT TRUE);
-                CREATE OR replace FUNCTION public.all_pending_tasks (integer, integer) RETURNS SETOF task AS
+                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BIGINT DEFAULT NULL, slavetask BOOLEAN DEFAULT TRUE);
+                CREATE OR replace FUNCTION public.all_pending_tasks (integer, integer, bigint) RETURNS SETOF task AS
                 $$
                 DECLARE
                     r task % rowtype;
@@ -73,17 +71,17 @@ class Scheduler:
                     LOCK TABLE task IN EXCLUSIVE MODE;
                     FOR r IN
                         SELECT * FROM task
-                        WHERE jid = $1 AND assigned = FALSE
+                        WHERE jid = $1 AND assigned IS NULL
                         ORDER BY id ASC
                         LIMIT $2
                     LOOP
-                        UPDATE task SET assigned=TRUE WHERE id=r.id RETURNING * INTO r;
+                        UPDATE task SET assigned=$3 WHERE id=r.id RETURNING * INTO r;
                         RETURN NEXT r;
                   END LOOP;
                   RETURN;
                 END
                 $$ LANGUAGE plpgsql VOLATILE STRICT;
-                CREATE OR replace FUNCTION public.pending_tasks (integer, boolean, integer) RETURNS SETOF task AS
+                CREATE OR replace FUNCTION public.pending_tasks (integer, boolean, integer, bigint) RETURNS SETOF task AS
                 $$
                 DECLARE
                     r task % rowtype;
@@ -91,11 +89,11 @@ class Scheduler:
                     LOCK TABLE task IN EXCLUSIVE MODE;
                     FOR r IN
                         SELECT * FROM task
-                        WHERE jid = $1 AND assigned = FALSE AND slavetask = $2
+                        WHERE jid = $1 AND assigned IS NULL AND slavetask = $2
                         ORDER BY id ASC
                         LIMIT $3
                     LOOP
-                        UPDATE task SET assigned=TRUE WHERE id=r.id RETURNING * INTO r;
+                        UPDATE task SET assigned=$4 WHERE id=r.id RETURNING * INTO r;
                         RETURN NEXT r;
                   END LOOP;
                   RETURN;
@@ -109,7 +107,6 @@ class Scheduler:
             storage.postgres.handle_db_error("create Scheduler", ex)
 
     def destroy(self):
-        logging.info("scheduler: destroy()")
         try:
             cur = self.db.conn.cursor()
             stat = """
@@ -118,14 +115,14 @@ class Scheduler:
             cur.execute(stat)
             self.db.conn.commit()
         except Exception as ex:
-            storage.handle_db_error("destroy scheduler", ex)
+            storage.handle_db_error("destroy debug.sched", ex)
         self
 
     def restart(self):
         self
 
     def add_job(self, job):
-        logging.info("scheduler: add_job(jid="+str(job.jid)+")")
+        self.db.add_log('debug.sched.add_job',{'hostid': self.hostid, 'jid': job.jid})
         if job.jid in self.job_matches:
             raise Exception("duplicate job")
         match_kind_tags = self.job_matches[job.jid] = defaultdict(list)
@@ -139,6 +136,7 @@ class Scheduler:
                 activity.set_initialized(commit=False)
                 self.aid_slave[activity.aid] = activity.stateless
             for oid in job.seed:
+                self.db.add_log('object.seed',{'hostid': self.hostid, 'jid': job.jid, 'oid': oid})
                 self.schedule_object(self.db.get_object(oid), False)
                 job.set_initialized(commit=False)
         else:
@@ -146,7 +144,7 @@ class Scheduler:
             for activity in job.activities():
                 self.aid_slave[activity.aid] = activity.stateless
                 if not activity.initialized:
-                    logging.info("scheduler: trigger activity: "+activity.module)
+                    self.db.add_log('scheduler.trigger_activity',{'hostid': self.hostid, 'aid': activity.aid, 'module': activity.module})
                     self.trigger_activity(activity, commit=False)
                     activity.set_initialized(commit=False)
         self.db.conn.commit()
@@ -170,25 +168,23 @@ class Scheduler:
         for jidaidoid in s_jidaidoid:
             cur.execute("DELETE FROM task WHERE jid = %s AND aid = %s AND  oid = %s;", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
         cur = self.db.conn.commit()
-        logging.info("scheduler: host " + self.host + " finish tasks: "+str(s_jidaidoid)) 
 
     def pending_tasks(self, jid, n=None, commit=True):
         if n is None:
             n = self.batchsize
         cur = self.db.conn.cursor()
         if (not self.master) or self.prefer_master_task:
-            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, (not self.master), n])
+            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s, %s);", [jid, (not self.master), n, self.hostid])
             qresult = cur.fetchall()
             if self.master and len(qresult) == 0 and self.prefer_master_task: 
-                cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
+                cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s, %s);", [jid, n, self.hostid])
                 qresult = cur.fetchall()
         else:
-            cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
+            cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s, %s);", [jid, n, self.hostid])
             qresult = cur.fetchall()
         res = [[row[0], row[1], row[2]] for row in qresult]
         if commit:
             self.db.conn.commit()
-            logging.info("scheduler: host " + self.host + " get tasks: "+str(res)) 
         return res
 
     def create_object(self, job, activation, obj, commit=True):
@@ -196,16 +192,15 @@ class Scheduler:
             newobj = self.db.create_object(job, activation, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
         else:
             raise Exception("unexpected persisten object")
+        self.db.add_log('object.create',{'hostid':self.hostid, 'oid': newobj.oid, 'kindtags': newobj.kindtags, 'jid': newobj.jid}, flush=True)
         self.schedule_object(newobj)
         return newobj
 
     def schedule_object(self, obj, commit=True):
-        logging.info("scheduler: schedule_object(oid="+str(obj.oid)+")")
         tasks = []
         for aid in self.get_matching_activities(obj.jid, obj.kindtags['kind'], set(obj.kindtags['tags'])):
             newtask = [obj.jid, aid, obj.oid]
             tasks.append(newtask)
-            logging.info("scheduler: new task "+str(newtask))
         self.add_tasks(tasks, commit)
 
     def print_tasks(self, header='TASKS'):
@@ -223,7 +218,6 @@ class Scheduler:
         for oid in activity.oids_triggered(commit=False):
             newtask = [jid, aid, oid]
             tasks.append(newtask)
-            logging.info("scheduler: trigger_activity generated task "+str(newtask))
         self.add_tasks(tasks, False)
         #
         if commit:
@@ -252,7 +246,6 @@ class Scheduler:
         for row in rows:
             newtask = [jid, row[0], row[1]]
             tasks.append(newtask)
-            logging.info("scheduler: reset_activity generated task "+str(newtask))
         self.add_tasks(tasks, False)
         #
         # delete all out objects (3)

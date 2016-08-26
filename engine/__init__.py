@@ -1,7 +1,6 @@
 import sys
 from threading import Thread
 import traceback
-import logging
 import configparser
 import storage
 from engine.scheduler import Scheduler
@@ -54,10 +53,9 @@ class Activity:
         self.module = self.db_activity.module
         self.scheduler = context['scheduler']
         self.setup([arg.strip() for arg in context['args'].split(',')])
-        logging.info("Activity:"+self.db_activity.module + " start")
 
     def setup(self, args):
-        logging.info("Activity:"+self.db_activity.module + " setup() ignored")
+        self
 
     def allow_distribution(self):
         self.scheduler.allow_distribution(self.db_activity.aid)
@@ -86,6 +84,7 @@ class Activity:
                 persistent_out.append(mix)
         self.db.set_activation_graph(activation, inobj, persistent_out, inrsrc, outrsrc)
         activation.set_status('f')
+        self.db.add_log('activation.create',{'hostid': self.scheduler.hostid, 'jid': self.job.jid, 'avid': activation.avid})
         return activation
 
     def activity_label(self):
@@ -101,10 +100,8 @@ class Activity:
     def handle_complex(self, obj):
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
-        self.db.add_log("activation.finish", {'module': self.module, 'id': self.scheduler.role, 'oid': obj.oid, 'avid': activation.avid})
 
     def process_object(self, o):
-        logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") start")
         try:
             self.handle_complex(o)
         except Exception as ex:
@@ -114,8 +111,6 @@ class Activity:
             # self.handler.activation.set_status('e')
             # self.db.add_log(self.db_activity.aid, "activation.error", error_str)
             self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.role, 'error': error_str})
-            logging.info(self.db_activity.module+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") error")
-            logging.error(self.db_activity.module+":"+error_str)
             if (True):
                 # TODO do not stop here, be sensible
                 print(error_str, file=sys.stderr)
@@ -123,7 +118,6 @@ class Activity:
                 sys.exit()
             return
         #
-        logging.info(__name__+": handle_object(aid="+str(self.db_activity.aid)+", oid="+str(o.oid)+") finish")
 
 
 def create_activity(db, scheduler, job, db_activity):
@@ -137,10 +131,7 @@ def run_job(configfile, scheduler, job, db):
         # get the pending jobs, scheduler say how much you will get
         todo = scheduler.pending_tasks(job.jid)
         if len(todo) == 0:
-            logging.info("run_job: no more todo")
             break
-        else:
-            logging.info("run_job: get todo: len="+str(len(todo)))
         for task in todo:
             aid = task[1]
             activity = active.get(aid)
@@ -157,8 +148,6 @@ class Engine:
         """
         Run the Combine engine
         """
-        logging.info("Running the Combine Web Harvesting engine!")
-        #
         self.configfile = configfile
         self.db = storage.opendb(configfile)
         self.scheduler = Scheduler(configfile, self.db)
