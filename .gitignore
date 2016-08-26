@@ -1,6 +1,6 @@
 env/
-combine.log
 cache/
 __pycache__/
 *.local.*
 *.swp
+*.log
