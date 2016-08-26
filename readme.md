@@ -31,7 +31,7 @@ Run
 
 
 Contributing
- -----------
+-----------
 
 This repository is laid out in packages. Only configuration, this readme, the python requirements file and the run shell script should be in the repository root.
 
