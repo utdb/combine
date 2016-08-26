@@ -41,9 +41,9 @@ def create_bearings_scenario(configfile):
     job.add_activity("modules.abf_fetch", "",
                      ([{'kind': "abf_detail_url"}, ]),
                      ([{'kind': 'abf_detail_page'}, ]))
-    # job.add_activity("modules.abf_extract_fields", "",
-                     # ([{'kind': "abf_detail_page"}, ]),
-                     # ([{'kind': 'abf_entity'}, ]))
+    job.add_activity("modules.abf_extract_fields", "",
+                     ([{'kind': "abf_detail_page"}, ]),
+                     ([{'kind': 'abf_entity'}, ]))
     job.add_activity("modules.rfc-x-abf-cmp", "",
                      ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
                      ([{'kind': 'UNKOWN'}, ]),
@@ -54,28 +54,32 @@ def create_bearings_scenario(configfile):
     combine_engine = Engine(configfile)
     combine_engine.run()
     #
-    job.add_activity("modules.abf_extract_fields", "",
-                     ([{'kind': "abf_detail_page"}, ]),
-                     ([{'kind': 'abf_entity'}, ]))
-    combine_engine.run()
-    combine_engine.stop()
-    #
     # open_bearings_scenario(configfile)
     #
     db.closedb()
 
 
-logging.basicConfig(filename='combine.log', level=logging.INFO)
-# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', metavar="configfile",  default='./combine.local.cfg', help="specify path of the confi file", required=False)
+    parser.add_argument('-c', '--config', metavar="configfile",  default='./master.local.cfg', help="specify path of the config file", required=False)
+    parser.add_argument('-l', '--logfile', metavar="logfile",  default='./combine.log', help="specify path of the log file", required=False)
+    parser.add_argument("--slave", action="store_true", help="always run as slave")
     args = vars(parser.parse_args())
     configfile = args['config']
+    logfile = args['logfile']
+    #
+    logging.basicConfig(filename=logfile, level=logging.INFO)
+    # logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+    #
     if not os.path.isfile(configfile):
         print("Bad configfile: "+configfile)
         sys.exit()
     #
-    create_bearings_scenario(configfile)
-    # open_bearings_scenario(configfile)
+    if args['slave']:
+        combine_engine = Engine(configfile)
+        combine_engine.run()
+        combine_engine.stop()
+    else:
+        create_bearings_scenario(configfile)
+        # open_bearings_scenario(configfile)

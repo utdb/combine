@@ -148,7 +148,7 @@ def run_job(configfile, scheduler, job, db):
                 activity = create_activity(db, scheduler, job, db.get_activity(aid))
                 active[aid] = activity
             activity.process_object(db.get_object(task[2]))
-        scheduler.rm_tasks(todo)
+        scheduler.finish_tasks(todo)
 
 
 class Engine:

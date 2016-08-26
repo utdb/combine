@@ -17,11 +17,17 @@ class Scheduler:
         config = configparser.RawConfigParser()
         config.read(configfile)
         self.role = config.get("scheduler", "role")
-        self.slave = not (self.role == "master")
+        if self.role == "master":
+            self.master = True
+            self.prefer_master_task = (config.get("scheduler", "task") == "master")
+        else:
+            self.master = False
+            self.prefer_master_task = False
         self.mode = config.get("scheduler", "mode")
         self.batchsize = int(config.get("scheduler", "batchsize"))
+        self.host = socket.gethostbyaddr(socket.gethostname())[0]
         #
-        # self.id = socket.gethostbyaddr(socket.gethostname())[0]
+        logging.info("scheduler: host " + self.host + " started as "+self.role) 
         #
         # self.db = storage.opendb(configfile)
         self.db = db
@@ -44,6 +50,7 @@ class Scheduler:
         self.active_jobs = [dbj for dbj in self.db.active_jobs()]
         for job in self.active_jobs:
             self.add_job(job)
+        # INCOMPLETE, maybe this code in restart: 
         # finally reset all assigned transactions
         cur = self.db.conn.cursor()
         cur.execute("UPDATE task SET assigned=FALSE WHERE assigned = TRUE;");
@@ -115,7 +122,7 @@ class Scheduler:
         self
 
     def restart(self):
-        print("TODO: SCHEDULER RESTART NOT IMPLEMENTED YET")
+        self
 
     def add_job(self, job):
         logging.info("scheduler: add_job(jid="+str(job.jid)+")")
@@ -158,24 +165,30 @@ class Scheduler:
         if commit:
             self.db.conn.commit()
 
-    def rm_tasks(self, s_jidaidoid):
+    def finish_tasks(self, s_jidaidoid):
         cur = self.db.conn.cursor()
         for jidaidoid in s_jidaidoid:
             cur.execute("DELETE FROM task WHERE jid = %s AND aid = %s AND  oid = %s;", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
         cur = self.db.conn.commit()
+        logging.info("scheduler: host " + self.host + " finish tasks: "+str(s_jidaidoid)) 
 
     def pending_tasks(self, jid, n=None, commit=True):
         if n is None:
             n = self.batchsize
         cur = self.db.conn.cursor()
-        # TODO master should first get all master jobs and after that the "*"
-        if self.slave:
-            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, TRUE, %s);", [jid, n])
+        if (not self.master) or self.prefer_master_task:
+            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s);", [jid, (not self.master), n])
+            qresult = cur.fetchall()
+            if self.master and len(qresult) == 0 and self.prefer_master_task: 
+                cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
+                qresult = cur.fetchall()
         else:
             cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s);", [jid, n])
-        res = [[row[0], row[1], row[2]] for row in cur.fetchall()]
+            qresult = cur.fetchall()
+        res = [[row[0], row[1], row[2]] for row in qresult]
         if commit:
             self.db.conn.commit()
+            logging.info("scheduler: host " + self.host + " get tasks: "+str(res)) 
         return res
 
     def create_object(self, job, activation, obj, commit=True):
