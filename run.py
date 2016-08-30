@@ -6,10 +6,6 @@ import storage
 import engine
 from engine import Engine
 
-
-JOBNAME = 'bearings-crawl'
-
-
 def open_bearings_scenario(configfile):
     logging.info("Open new Bearings Schedule")
     combine_engine = Engine(configfile)
