@@ -36,19 +36,19 @@ def create_bearings_scenario(configfile):
                      "--kind=rfc_entity,--tag=",
                      ([{'kind': 'rfc_entity_seed'}, ]),
                      ([{'kind': 'rfc_entity'}, ]))
-    # job.add_activity("modules.abf_detail_url", "",
-                     # ([{'kind': 'rfc_entity'}, ]),
-                     # ([{'kind': 'abf_detail_url'}, ]))
-    # job.add_activity("modules.abf_fetch", "",
-                     # ([{'kind': "abf_detail_url"}, ]),
-                     # ([{'kind': 'abf_detail_page'}, ]))
-    # job.add_activity("modules.abf_extract_fields", "",
-                     # ([{'kind': "abf_detail_page"}, ]),
-                     # ([{'kind': 'abf_entity'}, ]))
-    # job.add_activity("modules.rfc-x-abf-cmp", "",
-                     # ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
-                     # ([{'kind': 'UNKOWN'}, ]),
-                     # False)
+    job.add_activity("modules.abf_detail_url", "",
+                     ([{'kind': 'rfc_entity'}, ]),
+                     ([{'kind': 'abf_detail_url'}, ]))
+    job.add_activity("modules.abf_fetch", "",
+                     ([{'kind': "abf_detail_url"}, ]),
+                     ([{'kind': 'abf_detail_page'}, ]))
+    job.add_activity("modules.abf_extract_fields", "",
+                     ([{'kind': "abf_detail_page"}, ]),
+                     ([{'kind': 'abf_entity'}, ]))
+    job.add_activity("modules.rfc-x-abf-cmp", "",
+                     ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
+                     ([{'kind': 'UNKOWN'}, ]),
+                     False)
     job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
     job.start()
     db.commit()
