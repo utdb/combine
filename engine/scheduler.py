@@ -211,7 +211,7 @@ class Scheduler:
         for oid in activity.oids_triggered():
             newtask = [jid, aid, oid]
             tasks.append(newtask)
-        self.add_tasks(tasks, False)
+        self.add_tasks(tasks)
 
     def reset_activity(self, activity):
         cur = self.db.conn.cursor()
@@ -236,7 +236,7 @@ class Scheduler:
         for row in rows:
             newtask = [jid, row[0], row[1]]
             tasks.append(newtask)
-        self.add_tasks(tasks, False)
+        self.add_tasks(tasks)
         #
         # delete all out objects (3)
         cur.execute('DELETE FROM object WHERE oid IN (select oid from sptree_out);')

@@ -18,6 +18,7 @@ def open_bearings_scenario(configfile):
     print('RESETTING module: ' + module)
     activities = job.activities(module)
     combine_engine.scheduler.reset_activity(next(activities))
+    combine_engine.scheduler.commit()
     combine_engine.run()
     combine_engine.stop()
 
@@ -83,5 +84,5 @@ if __name__ == '__main__':
         combine_engine.run()
         combine_engine.stop()
     else:
-        create_bearings_scenario(configfile)
-        # open_bearings_scenario(configfile)
+        # create_bearings_scenario(configfile)
+        open_bearings_scenario(configfile)
