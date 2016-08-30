@@ -6,13 +6,14 @@ import configparser
 import psycopg2
 import psycopg2.extras
 
+
 class PostgresConnection:
 
     def __init__(self, conn):
         self.conn = conn
         logging.info("Open Postgres DB: "+str(self.conn))
-        self.max_logs  = 1 # always flush for order at the moment
-        self.log_list  = []
+        self.max_logs = 1  # always flush for order at the moment
+        self.log_list = []
 
     def commit(self):
         self.add_log('db.commit', {})
@@ -31,6 +32,7 @@ class PostgresConnection:
                   CREATE SEQUENCE combine_global_id;
 
                   CREATE TABLE context (
+<<<<<<< Updated upstream
                       cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       name              VARCHAR(32) UNIQUE,
                       description       TEXT
@@ -48,6 +50,17 @@ class PostgresConnection:
                       jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       cid               BIGINT,
                       name              VARCHAR(32) UNIQUE,
+=======
+		      cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      name              TEXT,
+                      description       TEXT
+                  );
+
+                  CREATE TABLE job (
+		      jid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+                      cid               BIGINT,
+                      name              TEXT,
+>>>>>>> Stashed changes
                       description       TEXT,
                       createtime        TIMESTAMP,
                       starttime         TIMESTAMP,
@@ -57,7 +70,11 @@ class PostgresConnection:
                   );
 
                   CREATE TABLE object (
+<<<<<<< Updated upstream
                       oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+=======
+		      oid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
+>>>>>>> Stashed changes
                       jid          BIGINT,
                       time         TIMESTAMP,
                       avid         BIGINT,
@@ -96,6 +113,10 @@ class PostgresConnection:
                   CREATE TABLE log (
                       lid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                       time      TIMESTAMP,
+<<<<<<< Updated upstream
+=======
+                      xid       BIGINT,
+>>>>>>> Stashed changes
                       event     TEXT,
                       message   JSONB
                   );
@@ -125,15 +146,14 @@ class PostgresConnection:
                       WHERE activity.aid = activation.aid;
                   CREATE OR REPLACE VIEW activation_graph AS
                       SELECT parent.aid, parent.avid AS avid_parent, child.avid AS avid_child
-                      FROM activation AS parent, activation AS child 
-                      WHERE (parent.oid_out && child.oid_in) OR (parent.rid_out && child.rid_in) AND parent.avid != child.avid; 
+                      FROM activation AS parent, activation AS child
+                      WHERE (parent.oid_out && child.oid_in) OR (parent.rid_out && child.rid_in) AND parent.avid != child.avid;
                   CREATE OR REPLACE RECURSIVE VIEW all_avid_descendants (aid, avid) AS
                       SELECT aid, avid from activation
                   UNION DISTINCT
                       SELECT base.aid, graph.avid_child AS avid
                       FROM all_avid_descendants base, activation_graph graph
                       WHERE base.avid = graph.avid_parent;
-                      
                """
             cur.execute(stat)
         except Exception as ex:
@@ -147,7 +167,10 @@ class PostgresConnection:
             cur = self.conn.cursor()
             stat = """
                   DROP TABLE IF EXISTS context    CASCADE;
+<<<<<<< Updated upstream
                   DROP TABLE IF EXISTS resource    CASCADE;
+=======
+>>>>>>> Stashed changes
                   DROP TABLE IF EXISTS job    CASCADE;
                   DROP TABLE IF EXISTS object     CASCADE;
                   DROP TABLE IF EXISTS actions    CASCADE;
@@ -168,11 +191,12 @@ class PostgresConnection:
             cur.execute("INSERT INTO context (name, description) VALUES (%s, %s);", [name, description])
             cur.execute("select last_value from combine_global_id;")
             cid = singlevalue(cur)
-            self.add_log('context.create',{'cid': cid, 'name': name})
+            self.add_log('context.create', {'cid': cid, 'name': name})
             return self.get_context(cid)
         except Exception as ex:
             handle_db_error("add_context", ex)
 
+<<<<<<< Updated upstream
     def add_resource(self, label):
         try:
             cur = self.conn.cursor()
@@ -180,6 +204,27 @@ class PostgresConnection:
             cur.execute("select last_value from combine_global_id;")
             rid = singlevalue(cur)
             return self.get_resource(label=label)
+=======
+    def add_context(self,name,description):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO context (name,description) VALUES (%s,%s);",[name,description])
+            cur.execute("select last_value from combine_global_id;")
+            cid = singlevalue(cur)
+            self.conn.commit()
+            return cid
+        except Exception as ex:
+            handle_db_error("add_context",ex)
+
+    def add_job(self,cid,name,description):
+        try:
+            cur = self.conn.cursor()
+            cur.execute("INSERT INTO job (cid,name,description,createtime) VALUES (%s,%s,%s,clock_timestamp());",[cid,name,description])
+            cur.execute("select last_value from combine_global_id;")
+            jid = singlevalue(cur)
+            self.conn.commit()
+            return jid
+>>>>>>> Stashed changes
 
         except Exception as ex:
             handle_db_error("add_job", ex)
@@ -190,7 +235,7 @@ class PostgresConnection:
             cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp());", [context.cid, name, description])
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
-            self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
+            self.add_log('job.create', {'jid': jid, 'cid': context.cid, 'name': name})
             return self.get_job(jid=jid)
 
         except Exception as ex:
@@ -206,11 +251,15 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
+<<<<<<< Updated upstream
     def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data):
         if str_data is not None:
             if bytes_data is not None:
                 raise Exception('create_object: str_data and bytes_data cannot have value at same time')
             bytes_data = str_data.encode('utf-8')
+=======
+    def add_object(self,jid,avid,kind,tags,content_type,content):
+>>>>>>> Stashed changes
         try:
             if 'tags' not in kindtags:
                 kindtags['tags'] = []
@@ -219,14 +268,18 @@ class PostgresConnection:
             else:
                 avid = activation.avid
             cur = self.conn.cursor()
+<<<<<<< Updated upstream
             cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
+=======
+            cur.execute("INSERT INTO object (time,jid,avid,kind,tags,content_type,content) VALUES (clock_timestamp(),%s,%s,%s,%s,%s,%s);",[jid,avid,kind,tags,content_type,content])
+>>>>>>> Stashed changes
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
             return self.get_object(oid)
         except Exception as ex:
             handle_db_error("create_object", ex)
 
-    def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in= None, rsrc_out= None):
+    def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in=None, rsrc_out=None):
         try:
             cur = self.conn.cursor()
             oid_in = [obj.oid for obj in obj_in]
@@ -254,7 +307,7 @@ class PostgresConnection:
                 cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(log[1])])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
-            self.log_list  = []
+            self.log_list = []
             return lid
         except Exception as ex:
             handle_db_error("_flush_log", ex)
@@ -272,7 +325,7 @@ class PostgresConnection:
     def get_context(self, cid):
         return PgContext(self, cid)
 
-    def get_resource(self, label, create= False):
+    def get_resource(self, label, create=False):
         try:
             res = PgResource(self, label)
         except psycopg2.Error as e:
@@ -344,6 +397,7 @@ class PgObject(PgDictWrapper):
         if res is not None:
             res = bytes(res).decode('utf-8')
         return res
+
 
 class PgActivity(PgDictWrapper):
 
@@ -438,8 +492,7 @@ class PgJob(PgDictWrapper):
 
     def __init__(self, db, idvalue=None, name=None):
         super(PgJob,  self).__init__(db,
-                'select * from job where ' +
-                (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
+                'select * from job where ' + (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
         self.idvalue = self.jid
 
     def start(self):
@@ -482,8 +535,8 @@ class PgJob(PgDictWrapper):
             aid = singlevalue(cur)
             for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
-            self._db.add_log('activity.create',{'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
-            # do not forget to moify the cache
+            self._db.add_log('activity.create', {'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
+            # do not forget to modify the cache
             return self._db.get_activity(aid)
         except Exception as ex:
             handle_db_error("add_activity", ex)
@@ -508,6 +561,7 @@ def handle_db_error(what,  ex):
     print(what+": "+str(ex),  file=sys.stderr)
     traceback.print_exc(file=sys.stdout)
     sys.exit()
+
 
 def add_missing_tags(kindtags_seq):
     for kindtags in kindtags_seq:
