@@ -72,7 +72,7 @@ class Activity:
     def get_object(self, oid):
         return self.db.get_object(oid)
 
-    def new_activation(self, inobj, outobj, inrsrc= None, outrsrc= None):
+    def new_activation(self, inobj, outobj, inrsrc=None, outrsrc=None):
         activation = self.db.add_activation(self.db_activity.aid)
         persistent_out = []
         for obj in outobj:
@@ -84,7 +84,7 @@ class Activity:
                 persistent_out.append(mix)
         self.db.set_activation_graph(activation, inobj, persistent_out, inrsrc, outrsrc)
         activation.set_status('f')
-        self.db.add_log('activation.create',{'hostid': self.scheduler.hostid, 'jid': self.job.jid, 'avid': activation.avid})
+        self.db.add_log('activation.create', {'hostid': self.scheduler.hostid, 'jid': self.job.jid, 'avid': activation.avid})
         return activation
 
     def activity_label(self):
@@ -125,11 +125,13 @@ def create_activity(db, scheduler, job, db_activity):
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args})
     return activity
 
+
 def run_job(configfile, scheduler, job, db):
     active = {}
     while True:
         # get the pending jobs, scheduler say how much you will get
         todo = scheduler.pending_tasks(job.jid)
+        scheduler.commit() # because otherwise other transactions may block
         if len(todo) == 0:
             break
         for task in todo:
@@ -139,7 +141,9 @@ def run_job(configfile, scheduler, job, db):
                 activity = create_activity(db, scheduler, job, db.get_activity(aid))
                 active[aid] = activity
             activity.process_object(db.get_object(task[2]))
+            scheduler.commit()
         scheduler.finish_tasks(todo)
+        scheduler.commit()
 
 
 class Engine:
@@ -151,6 +155,7 @@ class Engine:
         self.configfile = configfile
         self.db = storage.opendb(configfile)
         self.scheduler = Scheduler(configfile, self.db)
+        self.scheduler.commit()
 
     def run(self):
         self.joblist = []
@@ -162,7 +167,6 @@ class Engine:
             # jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(self.configfile, self.scheduler, job, self.db ))
             # self.joblist.append((job, jobthread))
             # jobthread.start()
-  
+
     def stop(self):
         self.db.closedb()
-
