@@ -15,7 +15,7 @@ class PostgresConnection:
         self.log_list  = []
 
     def commit(self):
-        self.add_log('db.commit', {})
+        # self.add_log('db.commit', {})
         self.conn.commit()
 
     def closedb(self):

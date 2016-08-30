@@ -84,5 +84,6 @@ if __name__ == '__main__':
         combine_engine.run()
         combine_engine.stop()
     else:
-        # create_bearings_scenario(configfile)
-        open_bearings_scenario(configfile)
+        create_bearings_scenario(configfile)
+        # open_bearings_scenario(configfile)
+
