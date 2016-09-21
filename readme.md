@@ -1,11 +1,12 @@
 Combine - the Combine Web Harvester
 ===================================
 
-Combine is a generic web harvesting architecture.
+Combine is a generic web harvesting architecture, built as part of the
+SmartCOPI project.
 
 The default location of this repository is: 
 
-git@kas.ewi.utwente.nl:smartcopi/combine.git
+  git@github.com:utdb/combine.git
 
 
 Set up
