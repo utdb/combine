@@ -14,9 +14,13 @@ class PostgresConnection:
         self.max_logs  = 1 # always flush for order at the moment
         self.log_list  = []
 
+    def commit(self):
+        # self.add_log('db.commit', {})
+        self.conn.commit()
+
     def closedb(self):
         self._flush_log()
-        self.conn.commit()
+        self.commit()
         self.conn.close()
         logging.info("Close Postgres DB: "+str(self.conn))
 
@@ -132,7 +136,6 @@ class PostgresConnection:
                       
                """
             cur.execute(stat)
-            self.conn.commit()
         except Exception as ex:
             handle_db_error("create", ex)
 
@@ -156,7 +159,6 @@ class PostgresConnection:
                   DROP SEQUENCE IF EXISTS combine_global_id CASCADE;
                """
             cur.execute(stat)
-            self.conn.commit()
         except Exception as ex:
             handle_db_error("destroy", ex)
 
@@ -167,7 +169,6 @@ class PostgresConnection:
             cur.execute("select last_value from combine_global_id;")
             cid = singlevalue(cur)
             self.add_log('context.create',{'cid': cid, 'name': name})
-            self.conn.commit()
             return self.get_context(cid)
         except Exception as ex:
             handle_db_error("add_context", ex)
@@ -178,7 +179,6 @@ class PostgresConnection:
             cur.execute("INSERT INTO resource (label) VALUES (%s);", [label])
             cur.execute("select last_value from combine_global_id;")
             rid = singlevalue(cur)
-            self.conn.commit()
             return self.get_resource(label=label)
 
         except Exception as ex:
@@ -191,7 +191,6 @@ class PostgresConnection:
             cur.execute("select last_value from combine_global_id;")
             jid = singlevalue(cur)
             self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
-            self.conn.commit()
             return self.get_job(jid=jid)
 
         except Exception as ex:
@@ -203,12 +202,11 @@ class PostgresConnection:
             cur.execute("INSERT INTO activation(createtime, aid, status) VALUES (clock_timestamp(), %s, %s);", [aid, 's'])
             cur.execute("select last_value from combine_global_id;")
             avid = singlevalue(cur)
-            self.conn.commit()
             return self.get_activation(avid)
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data, commit=True):
+    def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data):
         if str_data is not None:
             if bytes_data is not None:
                 raise Exception('create_object: str_data and bytes_data cannot have value at same time')
@@ -224,8 +222,6 @@ class PostgresConnection:
             cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
             cur.execute("select last_value from combine_global_id;")
             oid = singlevalue(cur)
-            if commit:
-                self.conn.commit()
             return self.get_object(oid)
         except Exception as ex:
             handle_db_error("create_object", ex)
@@ -247,7 +243,6 @@ class PostgresConnection:
             #
             #
             cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rid_in=%s, rid_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid])
-            self.conn.commit()
         except Exception as ex:
             handle_db_error("set_activation_graph", ex)
 
@@ -259,7 +254,6 @@ class PostgresConnection:
                 cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(log[1])])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
-            self.conn.commit()
             self.log_list  = []
             return lid
         except Exception as ex:
@@ -361,12 +355,10 @@ class PgActivity(PgDictWrapper):
         for row in cur.fetchall():
             self.trigger.append(row[1])
 
-    def set_initialized(self, commit= True):
+    def set_initialized(self):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE activity SET initialized=TRUE WHERE aid="+str(self.aid)+";")
-            if commit:
-                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("activity:set_initialized: ", ex)
 
@@ -374,46 +366,40 @@ class PgActivity(PgDictWrapper):
         cur = self._db.conn.cursor()
         cur.execute('SELECT kindtags FROM activity_trigger WHERE aid = %s;', [self.aid, ])
         rows = cur.fetchall()
-        self._db.conn.commit()
         for row in rows:
             yield [(row[0])['kind'], set((row[0])['tags'])]
 
-    def activity_objects(self, view, commit):
+    def activity_objects(self, view):
         cur = self._db.conn.cursor()
         cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         rows = cur.fetchall()
-        if commit:
-            self._db.conn.commit()
         for row in rows:
             yield self._db.get_object(row[0])
 
-    def objects_in(self, commit=False):
-        return self.activity_objects('activity_in', commit)
+    def objects_in(self):
+        return self.activity_objects('activity_in')
 
-    def objects_out(self, commit=False):
-        return self.activity_objects('activity_out', commit)
+    def objects_out(self):
+        return self.activity_objects('activity_out')
 
-    def objects_out_all(self, commit=False):
-        return self.activity_objects('activity_out_all', commit)
+    def objects_out_all(self):
+        return self.activity_objects('activity_out_all')
 
-    def activity_oids(self, view, commit):
-        self._db.conn.commit()
+    def activity_oids(self, view):
         cur = self._db.conn.cursor()
         cur.execute('SELECT oid FROM '+view+' WHERE aid = ' + str(self.aid) + ';')
         rows = cur.fetchall()
-        if commit:
-            self._db.conn.commit()
         oid_seq = [row[0] for row in rows]
         return oid_seq
 
-    def oids_in(self, commit=False):
-        return self.activity_oids('activity_in', commit)
+    def oids_in(self):
+        return self.activity_oids('activity_in')
 
-    def oids_out(self, commit=False):
-        return self.activity_oids('activity_out', commit)
+    def oids_out(self):
+        return self.activity_oids('activity_out')
 
-    def oids_triggered(self, commit=False):
-        return self.activity_oids('activity_trigger_oid', commit)
+    def oids_triggered(self):
+        return self.activity_oids('activity_trigger_oid')
 
 
 class PgActivityTrigger(PgDictWrapper):
@@ -428,12 +414,10 @@ class PgActivation(PgDictWrapper):
         super(PgActivation,  self).__init__(db, "select * from activation where avid="+str(idvalue)+";")
         self.idvalue = idvalue
 
-    def set_status(self, status, commit= True):
+    def set_status(self, status):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE activation SET status=\'"+status+"\' WHERE avid="+str(self.idvalue)+";")
-            if commit:
-                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:set_status: ", ex)
 
@@ -458,21 +442,17 @@ class PgJob(PgDictWrapper):
                 (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
         self.idvalue = self.jid
 
-    def start(self, commit=True):
+    def start(self):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET starttime=clock_timestamp(),  stoptime=NULL WHERE jid="+str(self.idvalue)+";")
-            if commit:
-                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
-    def set_initialized(self, commit=True):
+    def set_initialized(self):
         try:
             cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET initialized=TRUE WHERE jid="+str(self.idvalue)+";")
-            if commit:
-                self._db.conn.commit()
         except Exception as ex:
             handle_db_error("job:start: ", ex)
 
@@ -483,7 +463,6 @@ class PgJob(PgDictWrapper):
         else:
             cur.execute('SELECT aid FROM activity where jid=%s AND activity.module = %s;', [self.jid, module])
         rows = cur.fetchall()
-        self._db.conn.commit()
         for row in rows:
             yield self._db.get_activity(row[0])
 
@@ -492,7 +471,6 @@ class PgJob(PgDictWrapper):
         cur.execute("SELECT * INTO TEMPORARY delobj FROM activity_out_all WHERE aid = %s;", [activity.aid])
         cur.execute('DELETE FROM object WHERE oid IN (select oid from delobj);')
         cur.execute('DELETE FROM activation WHERE avid IN (select distinct avid from delobj);')
-        self._db.conn.commit()
 
     def add_activity(self, module, args, kindtags_in, kindtags_out, stateless=True):
         add_missing_tags(kindtags_in)
@@ -505,7 +483,6 @@ class PgJob(PgDictWrapper):
             for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
             self._db.add_log('activity.create',{'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
-            self._db.conn.commit()
             # do not forget to moify the cache
             return self._db.get_activity(aid)
         except Exception as ex:
@@ -516,14 +493,13 @@ class PgJob(PgDictWrapper):
             seed = []
             for obj in objects:
                 if obj.lightweight():
-                    newobj = self._db.create_object(self, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data(), commit=False)
+                    newobj = self._db.create_object(self, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data())
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))
             seed.append(newobj.oid)
             cur = self._db.conn.cursor()
             cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, self.jid])
-            self._db.conn.commit()
         except Exception as ex:
             handle_db_error("add_seed_data", ex)
 

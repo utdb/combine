@@ -18,6 +18,7 @@ def open_bearings_scenario(configfile):
     print('RESETTING module: ' + module)
     activities = job.activities(module)
     combine_engine.scheduler.reset_activity(next(activities))
+    combine_engine.scheduler.commit()
     combine_engine.run()
     combine_engine.stop()
 
@@ -29,6 +30,7 @@ def create_bearings_scenario(configfile):
         # initialize a fresh database
         db.destroy()
         db.create()
+        db.commit()
     context = db.add_context(JOBNAME, "Bearing Crawl Context")
     job = db.add_job(context, JOBNAME, "Bearings Crawl Job")
     job.add_activity("modules.seed_json",
@@ -50,6 +52,7 @@ def create_bearings_scenario(configfile):
                      False)
     job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
     job.start()
+    db.commit()
     #
     combine_engine = Engine(configfile)
     combine_engine.run()
@@ -83,3 +86,4 @@ if __name__ == '__main__':
     else:
         create_bearings_scenario(configfile)
         # open_bearings_scenario(configfile)
+

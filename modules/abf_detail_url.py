@@ -68,7 +68,7 @@ class AbfGetDetailUrl(engine.Activity):
                     result.append(newobj)
             # TODO: implement minimality testing through env
             # if True:
-                  # break
+                # break
         return result
 
 
