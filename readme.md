@@ -9,6 +9,21 @@ The default location of this repository is:
     git@github.com:utdb/combine.git
 
 
+This repository is laid out in packages. Only configuration, this readme, the python requirements file and the run shell script should be in the repository root.
+
+Files that match the `*.local.*` pattern are not committed to allow local configuration and shell scripts to be placed in directly in your working directory.
+
+
+Project Supporters
+------------------
+
+The SmartCOPI project is supported by:
+
+![Universtity of Twente](https://raw.githubusercontent.com/utdb/combine/master/supporters/ut.png)
+![COMMIT/](https://raw.githubusercontent.com/utdb/combine/master/supporters/commit.png)
+![Mydatafactory](https://raw.githubusercontent.com/utdb/combine/master/supporters/mdf.png)
+
+
 Set up
 ------
 
@@ -29,11 +44,3 @@ Run
     mode do the same with slave.cfg as you dit with master .cfg
   * The best way to run as slave is to execute ./scripts/run_slave.sh which
     contains the command to run as slave.
-
-
-Contributing
------------
-
-This repository is laid out in packages. Only configuration, this readme, the python requirements file and the run shell script should be in the repository root.
-
-Files that match the `*.local.*` pattern are not committed to allow local configuration and shell scripts to be placed in directly in your working directory.
