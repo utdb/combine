@@ -6,7 +6,7 @@ SmartCOPI project.
 
 The default location of this repository is: 
 
-  git@github.com:utdb/combine.git
+    git@github.com:utdb/combine.git
 
 
 Set up
