@@ -1,5 +1,6 @@
 env/
 cache/
+data/
 __pycache__/
 *.local.*
 *.swp
