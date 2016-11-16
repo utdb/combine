@@ -9,6 +9,7 @@ from engine.scheduler import Scheduler
 class LwObject:
 
     def __init__(self, a_kindtags, a_metadata, a_str_data, a_bytes_data, a_json_data="{}"):
+        self.oid = -1
         self.a_kindtags = a_kindtags
         self.a_metadata = a_metadata
         self.a_str_data = a_str_data
@@ -75,6 +76,7 @@ class Activity:
     def new_activation(self, inobj, outobj, inrsrc=None, outrsrc=None):
         activation = self.db.add_activation(self.db_activity.aid)
         persistent_out = []
+        inobj_s = [obj.oid for obj in inobj]
         for obj in outobj:
             if obj.lightweight():
                 newobj = self.scheduler.create_object(self.job, activation, obj)
@@ -84,7 +86,7 @@ class Activity:
                 persistent_out.append(mix)
         self.db.set_activation_graph(activation, inobj, persistent_out, inrsrc, outrsrc)
         activation.set_status('f')
-        self.db.add_log('activation.create', {'hostid': self.scheduler.hostid, 'jid': self.job.jid, 'avid': activation.avid})
+        self.db.add_log('activation.create', {'hostid': self.scheduler.hostid, 'jid': self.job.jid, 'avid': activation.avid, 'inobj': inobj_s})
         return activation
 
     def activity_label(self):

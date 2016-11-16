@@ -251,7 +251,10 @@ class PostgresConnection:
         try:
             cur = self.conn.cursor()
             for log in self.log_list:
-                cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(log[1])])
+                message = log[1]
+                cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(message)])
+                message['event']= log[0]
+                cur.execute("NOTIFY new_log, %s;", [json.dumps(message)])
             cur.execute("select last_value from combine_global_id;")
             lid = singlevalue(cur)
             self.log_list  = []
