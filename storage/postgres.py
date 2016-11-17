@@ -1,4 +1,5 @@
 import sys
+from threading import Thread
 import traceback
 import logging
 import json
@@ -517,7 +518,6 @@ def add_missing_tags(kindtags_seq):
         if 'tags' not in kindtags:
             kindtags['tags'] = []
 
-
 def opendb(configfile):
     """
     Initialize a postgres connection
@@ -531,3 +531,20 @@ def opendb(configfile):
 
     pdb = PostgresConnection(conn)
     return pdb
+
+def run_listener(configfile):
+    db = opendb(configfile)
+    conn = db.conn
+    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    cur = conn.cursor()
+    cur.execute("LISTEN new_log;")
+    while 1:
+        conn.poll()
+        while conn.notifies:
+            notify = conn.notifies.pop()
+            print("Got NOTIFY:", notify.pid, notify.channel, notify.payload)
+
+def test_listener(configfile):
+    listen_thread = Thread(name='test_listener', target=run_listener, args=(configfile,))
+    listen_thread.start()
+
