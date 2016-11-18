@@ -525,9 +525,17 @@ def opendb(configfile):
     config = configparser.RawConfigParser()
     config.read(configfile)
     try:
-        conn = psycopg2.connect("dbname='"+config.get("postgres",  "db")+"' user='"+config.get("postgres",  "user")+"' host='"+config.get("postgres",  "host")+"' password='"+config.get("postgres",  "password")+"'")
-    except Exception as ex:
-        handle_db_error("Unable to connect to postgres"+str(ex))
+        connect_parts = []
+        for key in ('dbname', 'user', 'host', 'password'):
+            if config.has_option('postgres', key):
+                connect_parts.append("{key}='{value}'".format(
+                        key=key,
+                        value=config.get('postgres', key)
+                    ))
+
+        conn = psycopg2.connect(' '.join(connect_parts))
+    except psycopg2.Error as ex:
+        handle_db_error("Unable to connect to postgres", ex)
 
     pdb = PostgresConnection(conn)
     return pdb

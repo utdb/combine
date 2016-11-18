@@ -1,5 +1,4 @@
 psycopg2==2.6.2
-configparser==3.5.0
 lxml==3.6.4
 requests==2.12.1
 
