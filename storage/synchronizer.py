@@ -145,6 +145,7 @@ class Consumer:
             task = self.sync.pop_task()
             if task is None:
                 print(self.id + ": NO TASK")
+                self.sync.commit() # necessary, otherwise consumer may block
                 if not self.sync.listening:
                     self.sync.listen()
                 self.sync.poll_task()
