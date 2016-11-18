@@ -2,6 +2,7 @@ env/
 cache/
 data/
 __pycache__/
+.vagrant/
 *.local.*
 *.swp
 *.log
