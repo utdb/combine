@@ -67,8 +67,8 @@ class AbfGetDetailUrl(engine.Activity):
                     newobj = self.get_object(delayed_oid)
                     result.append(newobj)
             # TODO: implement minimality testing through env
-            # if True:
-                # break
+            if False:
+                break
         return result
 
 

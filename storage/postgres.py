@@ -166,8 +166,7 @@ class PostgresConnection:
     def add_context(self, name, description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO context (name, description) VALUES (%s, %s);", [name, description])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO context (name, description) VALUES (%s, %s) RETURNING cid;", [name, description])
             cid = singlevalue(cur)
             self.add_log('context.create',{'cid': cid, 'name': name})
             return self.get_context(cid)
@@ -177,8 +176,7 @@ class PostgresConnection:
     def add_resource(self, label):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO resource (label) VALUES (%s);", [label])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO resource (label) VALUES (%s) RETURNING rid;", [label])
             rid = singlevalue(cur)
             return self.get_resource(label=label)
 
@@ -188,8 +186,7 @@ class PostgresConnection:
     def add_job(self, context, name, description):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp());", [context.cid, name, description])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp()) RETURNING jid;", [context.cid, name, description])
             jid = singlevalue(cur)
             self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
             return self.get_job(jid=jid)
@@ -200,8 +197,7 @@ class PostgresConnection:
     def add_activation(self, aid):
         try:
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO activation(createtime, aid, status) VALUES (clock_timestamp(), %s, %s);", [aid, 's'])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO activation(createtime, aid, status) VALUES (clock_timestamp(), %s, %s) RETURNING avid;", [aid, 's'])
             avid = singlevalue(cur)
             return self.get_activation(avid)
         except Exception as ex:
@@ -220,8 +216,7 @@ class PostgresConnection:
             else:
                 avid = activation.avid
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s);", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s) RETURNING oid;", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
             oid = singlevalue(cur)
             return self.get_object(oid)
         except Exception as ex:
@@ -250,14 +245,14 @@ class PostgresConnection:
     # add a list of log messages [event,message], returns 'lid' of last message
     def _flush_log(self):
         try:
+            lid = 0
             cur = self.conn.cursor()
             for log in self.log_list:
                 message = log[1]
-                cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s);", [log[0], json.dumps(message)])
+                cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s) RETURNING lid;", [log[0], json.dumps(message)])
+                lid = singlevalue(cur)
                 message['event']= log[0]
                 cur.execute("NOTIFY new_log, %s;", [json.dumps(message)])
-            cur.execute("select last_value from combine_global_id;")
-            lid = singlevalue(cur)
             self.log_list  = []
             return lid
         except Exception as ex:
@@ -481,8 +476,7 @@ class PgJob(PgDictWrapper):
         add_missing_tags(kindtags_out)
         try:
             cur = self._db.conn.cursor()
-            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s);", [self.jid, module, args, json.dumps(kindtags_out), stateless])
-            cur.execute("select last_value from combine_global_id;")
+            cur.execute("INSERT INTO activity (createtime, jid, module, args, kindtags_out, stateless) VALUES (clock_timestamp(), %s, %s, %s, %s, %s) RETURNING aid;", [self.jid, module, args, json.dumps(kindtags_out), stateless])
             aid = singlevalue(cur)
             for trigger in kindtags_in:
                 cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
@@ -535,20 +529,3 @@ def opendb(configfile):
 
     pdb = PostgresConnection(conn)
     return pdb
-
-def run_listener(configfile):
-    db = opendb(configfile)
-    conn = db.conn
-    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-    cur = conn.cursor()
-    cur.execute("LISTEN new_log;")
-    while 1:
-        conn.poll()
-        while conn.notifies:
-            notify = conn.notifies.pop()
-            print("Got NOTIFY:", notify.pid, notify.channel, notify.payload)
-
-def test_listener(configfile):
-    listen_thread = Thread(name='test_listener', target=run_listener, args=(configfile,))
-    listen_thread.start()
-

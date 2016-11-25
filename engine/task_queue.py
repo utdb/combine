@@ -1,12 +1,17 @@
 import sys
-import time
 import select
+import time
+import traceback
 from threading import Thread
 import configparser
 import psycopg2
 import psycopg2.extras
 
-import postgres
+import storage.postgres
+
+VERBOSE = False
+
+verbose = print if VERBOSE else lambda *a, **k: None
 
 class TaskQueue:
 
@@ -14,43 +19,38 @@ class TaskQueue:
         self.conn = conn
         self.id = id
         self.listening = False
-
-    def commit(self):
-        self.conn.commit()
-        print(self.id + ": commit")
+        verbose(self.id + ": init")
 
     def poll_task(self):
-        print(self.id + ": poll_task")
+        verbose(self.id + ": poll_task")
         while True:
             if select.select([self.conn],[],[],60) == ([],[],[]):
-                    print("***** SELECT Timeout")
+                    verbose("***** SELECT Timeout")
             else:
                 self.conn.poll()
                 if self.conn.notifies:
                     self.conn.notifies.pop()
-                    print(self.id + ": poll_task: succes")
+                    verbose(self.id + ": poll_task: succes")
                     return
                 else:
-                    print(self.id + ": poll_task: fail")
+                    verbose(self.id + ": poll_task: fail")
 
     def listen(self):
         cur = self.conn.cursor()
         cur.execute('LISTEN task_produced;')
-        self.commit()
         self.listening = True
-        print(self.id + ": listen")
+        verbose(self.id + ": listen")
 
     def unlisten(self):
         cur = self.conn.cursor()
         cur.execute('UNLISTEN task_produced;')
-        self.commit()
         self.listening = False
-        print(self.id + ": unlisten")
+        verbose(self.id + ": unlisten")
 
     def notify(self):
         cur = self.conn.cursor()
         cur.execute('NOTIFY task_produced;')
-        print(self.id + ": notify")
+        verbose(self.id + ": notify")
 
     def create_tables(self):
         try:
@@ -60,7 +60,7 @@ class TaskQueue:
                """
             cur.execute(stat)
         except Exception as ex:
-            print("Exception", ex)
+            handle_exception( ex)
 
     def drop_tables(self):
         try:
@@ -70,28 +70,31 @@ class TaskQueue:
                """
             cur.execute(stat)
         except Exception as ex:
-            print("Exception", ex)
+            handle_exception( ex)
 
-    def insert_task(self, jid, aid, oid, slavetask):
+    def push_task(self, jid, aid, oid, slavetask):
         try:
+            verbose(self.id + ": push_task", jid, aid, oid, slavetask)
             cur = self.conn.cursor()
             cur.execute("INSERT INTO task (jid, aid, oid, slavetask) VALUES (%s, %s, %s, %s);", [jid, aid, oid, slavetask])
         except Exception as ex:
-            print("Exception", ex)
+            handle_exception(ex)
 
-
-    def push_task(self, payload):
+    def notify_tasks(self):
         try:
-            print(self.id + ": push_task")
-            # cur = self.conn.cursor()
-            # cur.execute("INSERT INTO queue (payload) VALUES (%s);", [payload,])
-            self.insert_task(99, 100, 101, True)
+            verbose(self.id + ": notify_tasks")
             self.notify()
-            self.commit()
         except Exception as ex:
-            print("Exception", ex)
+            handle_exception(ex)
 
-    def pop_task(self):
+    def pop_task(self, slavetask=None):
+        if slavetask is None:
+            where = ""
+        else:
+            if slavetask:
+                where = "WHERE slavetask = TRUE"
+            else:
+                where = "WHERE slavetask = FALSE"
         try:
             cur = self.conn.cursor()
             stat = """
@@ -99,6 +102,9 @@ class TaskQueue:
                 WHERE id = (
                   SELECT id
                   FROM task
+                """ \
+                + where + \
+                """ \
                   ORDER BY id
                   FOR UPDATE SKIP LOCKED
                   LIMIT 1
@@ -108,38 +114,28 @@ class TaskQueue:
             cur.execute(stat)
             return singlerow(cur)
         except Exception as ex:
-            print("Exception", ex)
+            handle_exception(ex)
 
 def singlerow(cur):
     if cur.rowcount == 0:
         return None
     else:
         rows = cur.fetchall()
-        print('****'+str(rows[0]))
-        return rows[0][0]
-
-def singlevalue(cur):
-    # TODO check if it is really a single value
-    if cur.rowcount == 0:
-        return None
-    else:
-        rows = cur.fetchall()
-        return rows[0][0]
-
+        return rows[0]
 
 class Producer:
 
     def __init__(self, id):
         self.id = id
-        print('Producer: ' + self.id + ": started")
+        verbose('Producer: ' + self.id + ": started")
         pdb = postgres.opendb('../master.local.cfg')
         taskq = TaskQueue(pdb.conn,id)
         taskq.drop_tables()
         taskq.create_tables()
         while True:
-            taskq.push_task('dummy')
-            taskq.push_task('dummy')
-            taskq.commit()
+            taskq.push_task(99, 100, 101, True)
+            taskq.push_task(99, 100, 101, True)
+            taskq.notify_tasks()
             time.sleep(5)
 
 def run_producer(id):
@@ -156,14 +152,14 @@ class Consumer:
 
 
     def process_task(self, task):
-        print(self.id + ": PROCESS TASK: "+ str(task))
+        verbose(self.id + ": PROCESS TASK: "+ str(task))
         time.sleep(1)
 
     def run_loop(self):
         while True:
-            task = self.taskq.pop_task()
+            task = self.taskq.pop_task(True)
             if task is None:
-                print(self.id + ": NO TASK")
+                verbose(self.id + ": NO TASK")
                 self.taskq.commit() # necessary, otherwise consumer may block
                 if not self.taskq.listening:
                     self.taskq.listen()
@@ -175,6 +171,12 @@ class Consumer:
     
 def run_consumer(id):
     cons = Consumer(id)
+
+
+def handle_exception(ex):
+    print('EXCEPTION' + ': ' + str(ex),  file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit()
 
 if __name__ == '__main__':
     Thread(name='producer', target=run_producer, args=('producer',)).start()

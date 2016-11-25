@@ -39,7 +39,8 @@ def create_bearings_scenario(configfile):
                      ([{'kind': 'rfc_entity'}, ]))
     job.add_activity("modules.abf_detail_url", "",
                      ([{'kind': 'rfc_entity'}, ]),
-                     ([{'kind': 'abf_detail_url'}, ]))
+                     ([{'kind': 'abf_detail_url'}, ]),
+                     False)
     job.add_activity("modules.abf_fetch", "",
                      ([{'kind': "abf_detail_url"}, ]),
                      ([{'kind': 'abf_detail_page'}, ]))
@@ -53,6 +54,7 @@ def create_bearings_scenario(configfile):
     job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
     job.start()
     db.commit()
+    db.closedb()
     #
     combine_engine = Engine(configfile)
     combine_engine.run()
@@ -60,7 +62,6 @@ def create_bearings_scenario(configfile):
     #
     # open_bearings_scenario(configfile)
     #
-    db.closedb()
 
 
 if __name__ == '__main__':

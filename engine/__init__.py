@@ -133,19 +133,26 @@ def run_job(configfile, scheduler, job, db):
     while True:
         # get the pending jobs, scheduler say how much you will get
         todo = scheduler.pending_tasks(job.jid)
-        scheduler.commit() # because otherwise other transactions may block
-        if len(todo) == 0:
-            break
-        for task in todo:
-            aid = task[1]
-            activity = active.get(aid)
-            if activity is None:
+        if todo is None:
+            scheduler.commit() # necessary, otherwise consumer may block
+            if not scheduler.tq.listening:
+                scheduler.tq.listen()
+            scheduler.commit()
+            scheduler.tq.poll_task()
+        else:
+            if scheduler.tq.listening:
+                scheduler.tq.unlisten()
+            process_task(todo, active, scheduler, job, db)
+            scheduler.tq.notify_tasks()
+            scheduler.commit()
+
+def process_task(task, active, scheduler, job, db):
+    aid = task[2]
+    activity = active.get(aid)
+    if activity is None:
                 activity = create_activity(db, scheduler, job, db.get_activity(aid))
                 active[aid] = activity
-            activity.process_object(db.get_object(task[2]))
-            scheduler.commit()
-        scheduler.finish_tasks(todo)
-        scheduler.commit()
+    activity.process_object(db.get_object(task[3]))
 
 
 class Engine:

@@ -4,6 +4,7 @@ import configparser
 from collections import defaultdict
 import engine
 import storage
+from engine.task_queue import TaskQueue
 
 
 class Scheduler:
@@ -26,6 +27,8 @@ class Scheduler:
         self.batchsize = int(config.get("scheduler", "batchsize"))
         self.host = socket.gethostbyaddr(socket.gethostname())[0]
         self.hostid = self.db.add_log('host.start', {'role': self.role, 'host': self.host}, flush=True)
+        #
+        self.tq = TaskQueue(db.conn, 'host'+str(self.hostid))
         #
         if self.mode == "start":
             self.db.add_log('debug.sched.start', {'hostid': self.hostid})
@@ -54,65 +57,20 @@ class Scheduler:
             self.add_job(job)
         # INCOMPLETE, maybe this code in restart:
         # finally reset all assigned transactions
-        cur = self.db.conn.cursor()
-        cur.execute("UPDATE task SET assigned=NULL WHERE assigned IS NOT NULL;")
+        # cur = self.db.conn.cursor()
+        # cur.execute("UPDATE task SET assigned=NULL WHERE assigned IS NOT NULL;")
 
     def create(self):
         try:
-            cur = self.db.conn.cursor()
-            # Create table of pending tasks, assigned attr show if task is assigned
-            # When task is finished state record is deleted
-            stat = """
-                CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, assigned BIGINT DEFAULT NULL, slavetask BOOLEAN DEFAULT TRUE);
-                CREATE OR replace FUNCTION public.all_pending_tasks (integer, integer, bigint) RETURNS SETOF task AS
-                $$
-                DECLARE
-                    r task % rowtype;
-                BEGIN
-                    LOCK TABLE task IN EXCLUSIVE MODE;
-                    FOR r IN
-                        SELECT * FROM task
-                        WHERE jid = $1 AND assigned IS NULL
-                        ORDER BY id ASC
-                        LIMIT $2
-                    LOOP
-                        UPDATE task SET assigned=$3 WHERE id=r.id RETURNING * INTO r;
-                        RETURN NEXT r;
-                  END LOOP;
-                  RETURN;
-                END
-                $$ LANGUAGE plpgsql VOLATILE STRICT;
-                CREATE OR replace FUNCTION public.pending_tasks (integer, boolean, integer, bigint) RETURNS SETOF task AS
-                $$
-                DECLARE
-                    r task % rowtype;
-                BEGIN
-                    LOCK TABLE task IN EXCLUSIVE MODE;
-                    FOR r IN
-                        SELECT * FROM task
-                        WHERE jid = $1 AND assigned IS NULL AND slavetask = $2
-                        ORDER BY id ASC
-                        LIMIT $3
-                    LOOP
-                        UPDATE task SET assigned=$4 WHERE id=r.id RETURNING * INTO r;
-                        RETURN NEXT r;
-                  END LOOP;
-                  RETURN;
-                END
-                $$ LANGUAGE plpgsql VOLATILE STRICT;
-            """
-            cur.execute(stat)
+            self.tq.drop_tables()
+            self.tq.create_tables()
         except Exception as ex:
             print(str(ex))
             storage.postgres.handle_db_error("create Scheduler", ex)
 
     def destroy(self):
         try:
-            cur = self.db.conn.cursor()
-            stat = """
-                DROP TABLE IF EXISTS task CASCADE;
-            """
-            cur.execute(stat)
+            self.tq.drop_tables()
         except Exception as ex:
             storage.handle_db_error("destroy debug.sched", ex)
         self
@@ -157,28 +115,16 @@ class Scheduler:
     def add_tasks(self, s_jidaidoid):
         cur = self.db.conn.cursor()
         for jidaidoid in s_jidaidoid:
-            cur.execute("INSERT INTO task (jid, aid, oid, slavetask) VALUES (%s, %s, %s, %s);", [jidaidoid[0], jidaidoid[1], jidaidoid[2], self.aid_slave[jidaidoid[1]]])
+            self.tq.push_task(jidaidoid[0], jidaidoid[1], jidaidoid[2], self.aid_slave[jidaidoid[1]])
 
-    def finish_tasks(self, s_jidaidoid):
-        cur = self.db.conn.cursor()
-        for jidaidoid in s_jidaidoid:
-            cur.execute("DELETE FROM task WHERE jid = %s AND aid = %s AND  oid = %s;", [jidaidoid[0], jidaidoid[1], jidaidoid[2]])
-
-    def pending_tasks(self, jid, n=None):
-        if n is None:
-            n = self.batchsize
-        cur = self.db.conn.cursor()
+    def pending_tasks(self, jid):
         if (not self.master) or self.prefer_master_task:
-            cur.execute("SELECT jid, aid, oid FROM pending_tasks(%s, %s, %s, %s);", [jid, (not self.master), n, self.hostid])
-            qresult = cur.fetchall()
-            if self.master and len(qresult) == 0 and self.prefer_master_task:
-                cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s, %s);", [jid, n, self.hostid])
-                qresult = cur.fetchall()
+            todo = self.tq.pop_task(not self.master)
+            if self.master and (todo is None) and self.prefer_master_task:
+                todo = self.tq.pop_task()
         else:
-            cur.execute("SELECT jid, aid, oid FROM all_pending_tasks(%s, %s, %s);", [jid, n, self.hostid])
-            qresult = cur.fetchall()
-        res = [[row[0], row[1], row[2]] for row in qresult]
-        return res
+            todo = self.tq.pop_task()
+        return todo
 
     def create_object(self, job, activation, obj):
         if obj.lightweight():
