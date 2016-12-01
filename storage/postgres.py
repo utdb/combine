@@ -65,7 +65,8 @@ class PostgresConnection:
                       metadata     JSONB,
                       kindtags     JSONB,
                       bytes_data   BYTEA,
-                      json_data    JSONB
+                      json_data    JSONB,
+                      sentence     TEXT
                   );
                   CREATE INDEX okindginp ON object USING gin (kindtags);
 
@@ -203,7 +204,7 @@ class PostgresConnection:
         except Exception as ex:
             handle_db_error("add_activation", ex)
 
-    def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data):
+    def create_object(self, job, activation, kindtags, metadata, str_data, bytes_data, json_data, sentence):
         if str_data is not None:
             if bytes_data is not None:
                 raise Exception('create_object: str_data and bytes_data cannot have value at same time')
@@ -216,7 +217,7 @@ class PostgresConnection:
             else:
                 avid = activation.avid
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s) RETURNING oid;", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data)])
+            cur.execute("INSERT INTO object (time, jid, avid, kindtags, metadata, bytes_data, json_data, sentence) VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s, %s) RETURNING oid;", [job.jid, avid, json.dumps(kindtags), json.dumps(metadata), psycopg2.Binary(bytes_data), json.dumps(json_data), sentence])
             oid = singlevalue(cur)
             return self.get_object(oid)
         except Exception as ex:
@@ -491,7 +492,7 @@ class PgJob(PgDictWrapper):
             seed = []
             for obj in objects:
                 if obj.lightweight():
-                    newobj = self._db.create_object(self, None, obj.kindtags(), obj.metadata(), obj.str_data(), obj.bytes_data(), obj.json_data())
+                    newobj = self._db.create_object(self, None, obj.kindtags, obj.metadata, obj.str_data(), obj.bytes_data, obj.json_data, obj.sentence)
                 else:
                     newobj = obj
                     print("add_seed_data: Unexpected Object: "+str(obj))

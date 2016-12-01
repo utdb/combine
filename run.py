@@ -51,7 +51,7 @@ def create_bearings_scenario(configfile):
                      ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
                      ([{'kind': 'UNKOWN'}, ]),
                      False)
-    job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None), ])
+    job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None, None), ])
     job.start()
     db.commit()
     db.closedb()

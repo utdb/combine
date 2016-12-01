@@ -26,7 +26,7 @@ class SeedJsonHandler(engine.Activity):
         result = []
         for item in data:
             # print("seed_json: generate: "+json.dumps(item, indent='   '))
-            result.append(engine.LwObject(self.kindtags_default, {'Content-Type': 'application/text', 'encoding': 'utf-8'}, "", None, item))
+            result.append(engine.LwObject(self.kindtags_default, {'Content-Type': 'application/text', 'encoding': 'utf-8'}, "", None, item, obj.sentence))
         return result
 
 

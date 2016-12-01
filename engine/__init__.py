@@ -8,32 +8,21 @@ from engine.scheduler import Scheduler
 
 class LwObject:
 
-    def __init__(self, a_kindtags, a_metadata, a_str_data, a_bytes_data, a_json_data="{}"):
+    def __init__(self, a_kindtags, a_metadata, a_str_data, a_bytes_data, a_json_data, a_sentence):
         self.oid = -1
-        self.a_kindtags = a_kindtags
-        self.a_metadata = a_metadata
+        self.kindtags = a_kindtags
+        self.metadata = a_metadata
         self.a_str_data = a_str_data
-        self.a_bytes_data = a_bytes_data
-        self.a_json_data = a_json_data
+        self.bytes_data = a_bytes_data
+        self.json_data = a_json_data
+        self.sentence = a_sentence
         self._delayed_oid_container = [-1]
 
     def lightweight(self):
         return True
 
-    def kindtags(self):
-        return self.a_kindtags
-
-    def metadata(self):
-        return self.a_metadata
-
     def str_data(self):
         return self.a_str_data
-
-    def bytes_data(self):
-        return self.a_bytes_data
-
-    def json_data(self):
-        return self.a_json_data
 
     def delayed_oid_container(self):
         return self._delayed_oid_container
