@@ -11,6 +11,7 @@ class PostgresConnection:
 
     def __init__(self, db_config):
         self.db_config = db_config
+        self.last_error = None
         self.reconnect()
 
     def reconnect(self):
@@ -250,6 +251,16 @@ class PostgresConnection:
             return self._flush_log()
         else:
             return None
+
+    def force_log_message(self):
+        try:
+            if self.last_error is not None:
+                print('Write Postgres error log message:\n'+json.dumps(self.last_error),file=sys.stderr)
+                self.add_log("ERROR", self.last_error)
+                self._flush_log()
+                self.commit()
+        except:
+            None
 
     def get_object(self, oid):
         return PgObject(self, oid)

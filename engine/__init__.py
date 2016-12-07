@@ -93,15 +93,14 @@ class Activity:
         outobj = self.handle_simple(obj)
         activation = self.new_activation([obj, ], outobj)
 
-    def process_object(self, o):
+    def process_object(self, db, o):
         try:
             self.handle_complex(o)
         except Exception as ex:
-            error_str = "EXCEPTION in module " + self.db_activity.module\
+            error_txt = "EXCEPTION in module " + self.db_activity.module\
                          + " on oid[" + str(o.oid) + "]: " + str(ex)\
                          + '\n' + traceback.format_exc()
-            self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.role, 'error': error_str})
-            print(error_str, file=sys.stderr)
+            db.last_error = {'module': self.module, 'id': self.scheduler.role, 'error': error_txt}
             raise
 
 
@@ -155,6 +154,7 @@ def run_job(configfile, scheduler, job, db):
                     scheduler.commit()
         except psycopg2.Error as pe:
             db.rollback()
+            db.force_log_message()
             print('Postgres Error:\n'+str(pe),file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             # try to reconnect to the sertver
@@ -170,9 +170,10 @@ def run_job(configfile, scheduler, job, db):
             raise
         except Exception as general_e:
             db.rollback()
+            db.force_log_message()
             print('Exception:\n'+str(general_e),file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            # incomplete, decide what to do
+            sys.exit()
 
 
 
@@ -182,7 +183,7 @@ def process_task(task, active, scheduler, job, db):
     if activity is None:
         activity = create_activity(db, scheduler, job, db.get_activity(aid))
         active[aid] = activity
-    activity.process_object(db.get_object(task[3]))
+    activity.process_object(db, db.get_object(task[3]))
 
 
 class Engine:
