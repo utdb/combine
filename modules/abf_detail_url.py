@@ -39,7 +39,7 @@ class AbfGetDetailUrl(engine.Activity):
         self.url_dict = {}
         # store all previously generated url's with his oid container
         for obj in self.objects_out():
-            self.url_dict[obj.bytes_data()] = [obj.oid()]
+            self.url_dict[obj.bytes_data] = [obj.oid]
 
     def handle_simple(self, obj):
         # activation.input(obj)

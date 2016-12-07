@@ -4,6 +4,7 @@ import traceback
 import configparser
 import storage
 from engine.scheduler import Scheduler
+import psycopg2
 
 
 class LwObject:
@@ -99,16 +100,9 @@ class Activity:
             error_str = "EXCEPTION in module " + self.db_activity.module\
                          + " on oid[" + str(o.oid) + "]: " + str(ex)\
                          + '\n' + traceback.format_exc()
-            # self.handler.activation.set_status('e')
-            # self.db.add_log(self.db_activity.aid, "activation.error", error_str)
             self.db.add_log("activation.error", {'module': self.module, 'id': self.scheduler.role, 'error': error_str})
-            if (True):
-                # TODO do not stop here, be sensible
-                print(error_str, file=sys.stderr)
-                self.db.closedb()
-                sys.exit()
-            return
-        #
+            print(error_str, file=sys.stderr)
+            raise
 
 
 def create_activity(db, scheduler, job, db_activity):
@@ -117,7 +111,7 @@ def create_activity(db, scheduler, job, db_activity):
     return activity
 
 
-def run_job(configfile, scheduler, job, db):
+def run_job_OLD(configfile, scheduler, job, db):
     active = {}
     while True:
         # get the pending jobs, scheduler say how much you will get
@@ -135,12 +129,59 @@ def run_job(configfile, scheduler, job, db):
             scheduler.tq.notify_tasks()
             scheduler.commit()
 
+def run_job(configfile, scheduler, job, db):
+    active = {}
+    MAXIMUM_BACKOFF = 12 * 60 * 60
+    INITIAL_BACKOFF = 30 
+    backoff_time = INITIAL_BACKOFF
+    while True:
+        try:
+            if db.conn is None:
+                db.reconnect()
+            with db.conn:
+                # get the pending jobs, scheduler say how much you will get
+                todo = scheduler.pending_tasks(job.jid)
+                if todo is None:
+                    scheduler.commit() # necessary, otherwise consumer may block
+                    if not scheduler.tq.listening:
+                        scheduler.tq.listen()
+                    scheduler.commit()
+                    scheduler.tq.poll_task()
+                else:
+                    if scheduler.tq.listening:
+                        scheduler.tq.unlisten()
+                    process_task(todo, active, scheduler, job, db)
+                    scheduler.tq.notify_tasks()
+                    scheduler.commit()
+        except psycopg2.Error as pe:
+            db.rollback()
+            print('Postgres Error:\n'+str(pe),file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            # try to reconnect to the sertver
+            if backoff_time < MAXIMUM_BACKOFF:
+                time.sleep(backoff_time)
+                backoff_time = backoff_time*2
+                # remove current connection and start with a fresh one
+                db.closedb()
+            else:
+                break
+        except (KeyboardInterrupt, SystemExit): # ?? BaseException
+            db.rollback()
+            raise
+        except Exception as general_e:
+            db.rollback()
+            print('Exception:\n'+str(general_e),file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            # incomplete, decide what to do
+
+
+
 def process_task(task, active, scheduler, job, db):
     aid = task[2]
     activity = active.get(aid)
     if activity is None:
-                activity = create_activity(db, scheduler, job, db.get_activity(aid))
-                active[aid] = activity
+        activity = create_activity(db, scheduler, job, db.get_activity(aid))
+        active[aid] = activity
     activity.process_object(db.get_object(task[3]))
 
 
