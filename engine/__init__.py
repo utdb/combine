@@ -136,6 +136,7 @@ def run_job(configfile, scheduler, job, db):
     while True:
         try:
             if db.conn is None:
+                # check for connection errors
                 db.reconnect()
             with db.conn:
                 # get the pending jobs, scheduler say how much you will get

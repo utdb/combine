@@ -2,6 +2,7 @@ import sys
 import os.path
 import argparse
 import logging
+import json
 import storage
 import engine
 from engine import Engine
@@ -22,47 +23,39 @@ def open_bearings_scenario(configfile):
     combine_engine.run()
     combine_engine.stop()
 
-
-def create_bearings_scenario(configfile):
-    logging.info("Create new Bearings Schedule")
+def load_scenario(configfile, scenario):
+    logging.info("Create new JSON Bearings Schedule")
     db = storage.opendb(configfile)
     if True:
         # initialize a fresh database
         db.destroy()
         db.create()
         db.commit()
-    context = db.add_context(JOBNAME, "Bearing Crawl Context")
-    job = db.add_job(context, JOBNAME, "Bearings Crawl Job")
-    job.add_activity("modules.seed_json",
-                     "--kind=rfc_entity,--tag=",
-                     ([{'kind': 'rfc_entity_seed'}, ]),
-                     ([{'kind': 'rfc_entity'}, ]))
-    job.add_activity("modules.abf_detail_url", "",
-                     ([{'kind': 'rfc_entity'}, ]),
-                     ([{'kind': 'abf_detail_url'}, ]),
-                     False)
-    job.add_activity("modules.abf_fetch", "",
-                     ([{'kind': "abf_detail_url"}, ]),
-                     ([{'kind': 'abf_detail_page'}, ]))
-    job.add_activity("modules.abf_extract_fields", "",
-                     ([{'kind': "abf_detail_page"}, ]),
-                     ([{'kind': 'abf_entity'}, ]))
-    job.add_activity("modules.rfc-x-abf-cmp", "",
-                     ([{'kind': "rfc_entity"}, {'kind': "abf_entity"}]),
-                     ([{'kind': 'UNKOWN'}, ]),
-                     False)
-    job.add_seed_data([engine.LwObject({'kind': 'rfc_entity_seed', 'tags': []}, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "./data/rfc.in.test.json", None, None, None), ])
-    job.start()
+    with open(scenario) as data_file:    
+        for d in json.load(data_file):
+            (k, v) = d.popitem()
+            if k == 'create_context':
+                context = db.add_context(v['name'], v['description'])
+            elif k == 'create_job':
+                context = db.get_context(v['context'])
+                job = db.add_job(context, v['name'], v['description'])
+                for a in v['activities']:
+                    activity = a['activity']
+                    job.add_activity(activity['module'], activity['args'], activity['kindtags_in'], activity['kindtags_out'])
+                seedobj = []
+                for o in v['seed_data']['objects']:
+                    obj = o['object']
+                    seedobj.append(engine.LwObject(obj['kindtags'], obj['metadata'], obj['str_data'], obj['bytes_data'], obj['json_data'], obj['sentence']))
+                job.add_seed_data(seedobj)
+                job.start()
+            else:
+                raise ValueError('unknown JSON object: ' + k)
     db.commit()
     db.closedb()
     #
     combine_engine = Engine(configfile)
     combine_engine.run()
     combine_engine.stop()
-    #
-    # open_bearings_scenario(configfile)
-    #
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -86,6 +79,6 @@ if __name__ == '__main__':
         combine_engine.stop()
     else:
         # storage.postgres.test_listener(configfile)
-        create_bearings_scenario(configfile)
+        load_scenario(configfile, './bearing_crawl.json')
         # open_bearings_scenario(configfile)
 

@@ -178,7 +178,19 @@ class PostgresConnection:
         cur.execute("INSERT INTO context (name, description) VALUES (%s, %s) RETURNING cid;", [name, description])
         cid = singlevalue(cur)
         self.add_log('context.create',{'cid': cid, 'name': name})
-        return self.get_context(cid)
+        return self.get_context_byid(cid)
+
+    def get_context(self, name):
+        cur = self.conn.cursor()
+        cur.execute("SELECT cid from context WHERE name = %s;", [name, ])
+        cid = singlevalue(cur)
+        return self.get_context_byid(cid)
+
+    def get_job(self, name):
+        cur = self.conn.cursor()
+        cur.execute("SELECT jid from job WHERE name = %s;", [name, ])
+        jid = singlevalue(cur)
+        return self.get_job_byid(jid)
 
     def add_resource(self, label):
         cur = self.conn.cursor()
@@ -191,7 +203,7 @@ class PostgresConnection:
         cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp()) RETURNING jid;", [context.cid, name, description])
         jid = singlevalue(cur)
         self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
-        return self.get_job(jid=jid)
+        return self.get_job_byid(jid=jid)
 
     def add_activation(self, aid):
         cur = self.conn.cursor()
@@ -265,7 +277,7 @@ class PostgresConnection:
     def get_object(self, oid):
         return PgObject(self, oid)
 
-    def get_context(self, cid):
+    def get_context_byid(self, cid):
         return PgContext(self, cid)
 
     def get_resource(self, label, create= False):
@@ -279,7 +291,7 @@ class PostgresConnection:
                 handle_db_error("get_resourceg", str(e))
         return res
 
-    def get_job(self, jid=None, name=None):
+    def get_job_byid(self, jid=None, name=None):
         return PgJob(self, jid, name)
 
     def get_activity(self, aid):
@@ -291,7 +303,7 @@ class PostgresConnection:
     def active_jobs(self):
         cur = self.conn.cursor()
         cur.execute("SELECT jid FROM active_job;")
-        return [self.get_job(jid=row[0]) for row in cur.fetchall()]
+        return [self.get_job_byid(jid=row[0]) for row in cur.fetchall()]
 
     def objects_todo(self, job):
         cur = self.conn.cursor()
