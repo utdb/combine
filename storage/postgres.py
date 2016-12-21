@@ -68,7 +68,8 @@ class PostgresConnection:
                   starttime         TIMESTAMP,
                   stoptime          TIMESTAMP,
                   seed              BIGINT[],
-                  initialized       BOOLEAN DEFAULT FALSE
+                  initialized       BOOLEAN DEFAULT FALSE,
+                  version_id        BIGINT
               );
 
               CREATE TABLE object (
@@ -200,7 +201,7 @@ class PostgresConnection:
 
     def add_job(self, context, name, description):
         cur = self.conn.cursor()
-        cur.execute("INSERT INTO job (cid, name, description, createtime) VALUES (%s, %s, %s, clock_timestamp()) RETURNING jid;", [context.cid, name, description])
+        cur.execute("INSERT INTO job (cid, name, description, createtime, version_id) VALUES (%s, %s, %s, clock_timestamp(), 1001) RETURNING jid;", [context.cid, name, description])
         jid = singlevalue(cur)
         self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
         return self.get_job_byid(jid=jid)
@@ -452,6 +453,12 @@ class PgJob(PgDictWrapper):
     def set_initialized(self):
         cur = self._db.conn.cursor()
         cur.execute("UPDATE job SET initialized=TRUE WHERE jid="+str(self.idvalue)+";")
+
+    def new_version(self):
+        new_version_id = this.version_id + 1
+        cur = self._db.conn.cursor()
+        cur.execute("UPDATE job SET version_id="+str(new_version_id)+" WHERE jid="+str(self.idvalue)+";")
+        return new_version_id
 
     def activities(self, module=None):
         cur = self._db.conn.cursor()

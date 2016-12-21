@@ -18,7 +18,7 @@ def open_bearings_scenario(configfile):
     module = 'modules.abf_extract_fields'
     print('RESETTING module: ' + module)
     activities = job.activities(module)
-    combine_engine.scheduler.reset_activity(next(activities))
+    combine_engine.scheduler.reset_activity(next(activities),job)
     combine_engine.scheduler.commit()
     combine_engine.run()
     combine_engine.stop()

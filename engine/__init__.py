@@ -104,31 +104,13 @@ class Activity:
             raise
 
 
-def create_activity(db, scheduler, job, db_activity):
+def create_activity(db, scheduler, db_activity):
     module = __import__(db_activity.module, fromlist=[''])
+    job = db.get_job_byid(db_activity.jid)
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args})
     return activity
 
-
-def run_job_OLD(configfile, scheduler, job, db):
-    active = {}
-    while True:
-        # get the pending jobs, scheduler say how much you will get
-        todo = scheduler.pending_tasks(job.jid)
-        if todo is None:
-            scheduler.commit() # necessary, otherwise consumer may block
-            if not scheduler.tq.listening:
-                scheduler.tq.listen()
-            scheduler.commit()
-            scheduler.tq.poll_task()
-        else:
-            if scheduler.tq.listening:
-                scheduler.tq.unlisten()
-            process_task(todo, active, scheduler, job, db)
-            scheduler.tq.notify_tasks()
-            scheduler.commit()
-
-def run_job(configfile, scheduler, job, db):
+def run_engine(configfile, scheduler, db):
     active = {}
     MAXIMUM_BACKOFF = 12 * 60 * 60
     INITIAL_BACKOFF = 30 
@@ -140,7 +122,7 @@ def run_job(configfile, scheduler, job, db):
                 db.reconnect()
             with db.conn:
                 # get the pending jobs, scheduler say how much you will get
-                todo = scheduler.pending_tasks(job.jid)
+                todo = scheduler.pending_tasks()
                 if todo is None:
                     scheduler.commit() # necessary, otherwise consumer may block
                     if not scheduler.tq.listening:
@@ -150,7 +132,7 @@ def run_job(configfile, scheduler, job, db):
                 else:
                     if scheduler.tq.listening:
                         scheduler.tq.unlisten()
-                    process_task(todo, active, scheduler, job, db)
+                    process_task(todo, active, scheduler, db)
                     scheduler.tq.notify_tasks()
                     scheduler.commit()
         except psycopg2.Error as pe:
@@ -178,12 +160,22 @@ def run_job(configfile, scheduler, job, db):
 
 
 
-def process_task(task, active, scheduler, job, db):
+def process_task(task, active, scheduler, db):
     aid = task[2]
+    version_id = task[5]
     activity = active.get(aid)
     if activity is None:
-        activity = create_activity(db, scheduler, job, db.get_activity(aid))
+        activity = create_activity(db, scheduler, db.get_activity(aid))
+        activity.version_id = version_id
         active[aid] = activity
+    else:
+        if activity.version_id != version_id:
+            # the job description has changed, reload the scheduler and jobs
+            print("########################")
+            active.clear()
+            scheduler.reset()
+            process_task(task, active, scheduler, db)
+            return
     activity.process_object(db, db.get_object(task[3]))
 
 
@@ -202,12 +194,11 @@ class Engine:
         self.joblist = []
         # always reset the scheduler before a run
         self.scheduler.reset()
-        for job in self.scheduler.active_jobs:
-            run_job(self.configfile, self.scheduler, job, self.db)
-            # TODO: reimplement threading
-            # jobthread = Thread(name="Job:"+job.name(), target=run_job, args=(self.configfile, self.scheduler, job, self.db ))
-            # self.joblist.append((job, jobthread))
-            # jobthread.start()
+        run_engine(self.configfile, self.scheduler, self.db)
+        # TODO: reimplement threading
+        # jobthread = Thread(name="Job:"+job.name(), target=run_engine, args=(self.configfile, self.scheduler, self.db ))
+        # self.joblist.append((job, jobthread))
+        # jobthread.start()
 
     def stop(self):
         self.db.closedb()

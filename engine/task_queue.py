@@ -56,7 +56,8 @@ class TaskQueue:
         try:
             cur = self.conn.cursor()
             stat = """
-                   CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, slavetask BOOLEAN DEFAULT TRUE);
+                   CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT, oid BIGINT, slavetask BOOLEAN DEFAULT TRUE, version_id BIGINT);
+                   CREATE TABLE jobstatus (jid BIGINT PRIMARY KEY, version_id BIGINT);
                """
             cur.execute(stat)
         except Exception as ex:
@@ -67,16 +68,39 @@ class TaskQueue:
             cur = self.conn.cursor()
             stat = """
                   DROP TABLE IF EXISTS task CASCADE;
+                  DROP TABLE IF EXISTS jobstatus CASCADE;
                """
             cur.execute(stat)
         except Exception as ex:
             handle_exception( ex)
 
-    def push_task(self, jid, aid, oid, slavetask):
+    def start_job(self, job):
+        jid = job.jid
+        version_id = job.version_id
+        try:
+            verbose(self.id + ": add_job", jid)
+            cur = self.conn.cursor()
+            cur.execute("DELETE FROM jobstatus WHERE jid = %s;", [jid, ])
+            cur.execute("INSERT INTO jobstatus (jid,version_id) VALUES (%s,%s);", [jid, version_id])
+        except Exception as ex:
+            handle_exception(ex)
+
+    def suspend_job(self, job):
+        try:
+            jid = job.jid
+            verbose(self.id + ": suspend_job", jid)
+            new_version_id = job.new_version()
+            cur = self.conn.cursor()
+            cur.execute("DELETE FROM jobstatus WHERE jid = %s;", [jid, ])
+            cur.execute("UPDATE task SET version_id="+str(new_version_id)+" WHERE jid="+str(jid)+";")
+        except Exception as ex:
+            handle_exception(ex)
+
+    def push_task(self, jid, aid, oid, slavetask, version_id):
         try:
             verbose(self.id + ": push_task", jid, aid, oid, slavetask)
             cur = self.conn.cursor()
-            cur.execute("INSERT INTO task (jid, aid, oid, slavetask) VALUES (%s, %s, %s, %s);", [jid, aid, oid, slavetask])
+            cur.execute("INSERT INTO task (jid, aid, oid, slavetask, version_id) VALUES (%s, %s, %s, %s, %s);", [jid, aid, oid, slavetask, version_id])
         except Exception as ex:
             handle_exception(ex)
 
@@ -92,16 +116,16 @@ class TaskQueue:
             where = ""
         else:
             if slavetask:
-                where = "WHERE slavetask = TRUE"
+                where = "WHERE slavetask = TRUE AND task.jid = jobstatus.jid"
             else:
-                where = "WHERE slavetask = FALSE"
+                where = "WHERE slavetask = FALSE AND task.jid = jobstatus.jid"
         try:
             cur = self.conn.cursor()
             stat = """
                 DELETE FROM task
                 WHERE id = (
                   SELECT id
-                  FROM task
+                  FROM task, jobstatus
                 """ \
                 + where + \
                 """ \
