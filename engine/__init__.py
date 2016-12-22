@@ -110,10 +110,11 @@ def create_activity(db, scheduler, db_activity):
     activity = module.get_handler({'db': db, 'scheduler': scheduler, 'job': job, 'db_activity': db_activity, 'args': db_activity.args})
     return activity
 
+
 def run_engine(configfile, scheduler, db):
     active = {}
     MAXIMUM_BACKOFF = 12 * 60 * 60
-    INITIAL_BACKOFF = 30 
+    INITIAL_BACKOFF = 30
     backoff_time = INITIAL_BACKOFF
     while True:
         try:
@@ -124,7 +125,7 @@ def run_engine(configfile, scheduler, db):
                 # get the pending jobs, scheduler say how much you will get
                 todo = scheduler.pending_tasks()
                 if todo is None:
-                    scheduler.commit() # necessary, otherwise consumer may block
+                    scheduler.commit()  # necessary, otherwise consumer may block
                     if not scheduler.tq.listening:
                         scheduler.tq.listen()
                     scheduler.commit()
@@ -138,29 +139,31 @@ def run_engine(configfile, scheduler, db):
         except psycopg2.Error as pe:
             db.rollback()
             db.force_log_message()
-            print('Postgres Error:\n'+str(pe),file=sys.stderr)
+            print('Postgres Error:\n'+str(pe), file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             # try to reconnect to the sertver
             if backoff_time < MAXIMUM_BACKOFF:
                 time.sleep(backoff_time)
                 backoff_time = backoff_time*2
                 # remove current connection and start with a fresh one
-                db.closedb()
+                db.close()
             else:
                 break
-        except (KeyboardInterrupt, SystemExit): # ?? BaseException
+        except(KeyboardInterrupt, SystemExit):  # ?? BaseException
             db.rollback()
             raise
         except Exception as general_e:
             db.rollback()
             db.force_log_message()
-            print('Exception:\n'+str(general_e),file=sys.stderr)
+            print('Exception:\n' + str(general_e), file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
             sys.exit()
 
 
-
 def process_task(task, active, scheduler, db):
+    if task[0] == 0:
+        print("########### RECONFIGURE")
+        return
     aid = task[2]
     version_id = task[5]
     activity = active.get(aid)
@@ -171,7 +174,6 @@ def process_task(task, active, scheduler, db):
     else:
         if activity.version_id != version_id:
             # the job description has changed, reload the scheduler and jobs
-            print("########################")
             active.clear()
             scheduler.reset()
             process_task(task, active, scheduler, db)
@@ -201,4 +203,4 @@ class Engine:
         # jobthread.start()
 
     def stop(self):
-        self.db.closedb()
+        self.db.close()

@@ -7,6 +7,7 @@ import configparser
 import psycopg2
 import psycopg2.extras
 
+
 class PostgresConnection:
 
     def __init__(self, db_config):
@@ -16,8 +17,8 @@ class PostgresConnection:
 
     def reconnect(self):
         logging.info("Open Postgres DB: "+str(self.db_config))
-        self.max_logs  = 1 # always flush for order at the moment
-        self.log_list  = []
+        self.max_logs = 1  # always flush for order at the moment
+        self.log_list = []
         self.conn = psycopg2.connect(**self.db_config)
 
     def rollback(self):
@@ -30,20 +31,25 @@ class PostgresConnection:
     def commit(self):
         self.conn.commit()
 
-    def closedb(self):
+    def close(self):
         try:
             if self.conn is not None:
                 self._flush_log()
                 self.conn.close()
                 logging.info("Close Postgres DB: "+str(self.conn))
         except psycopg2.Error as e:
-            print('Warning Postgres closing Error:\n'+str(e),file=sys.stderr)
+            print('Warning Postgres closing Error:\n'+str(e), file=sys.stderr)
         self.conn = None
 
     def create(self):
         cur = self.conn.cursor()
         stat = """
               CREATE SEQUENCE combine_global_id;
+
+              CREATE TABLE reconfigure (
+                  id    BIGINT,
+                  json  TEXT
+              );
 
               CREATE TABLE context (
                   cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
@@ -142,15 +148,15 @@ class PostgresConnection:
                   WHERE activity.aid = activation.aid;
               CREATE OR REPLACE VIEW activation_graph AS
                   SELECT parent.aid, parent.avid AS avid_parent, child.avid AS avid_child
-                  FROM activation AS parent, activation AS child 
-                  WHERE (parent.oid_out && child.oid_in) OR (parent.rid_out && child.rid_in) AND parent.avid != child.avid; 
+                  FROM activation AS parent, activation AS child
+                  WHERE (parent.oid_out && child.oid_in) OR (parent.rid_out && child.rid_in) AND parent.avid != child.avid;
               CREATE OR REPLACE RECURSIVE VIEW all_avid_descendants (aid, avid) AS
                   SELECT aid, avid from activation
               UNION DISTINCT
                   SELECT base.aid, graph.avid_child AS avid
                   FROM all_avid_descendants base, activation_graph graph
                   WHERE base.avid = graph.avid_parent;
-                  
+
            """
         cur.execute(stat)
 
@@ -160,6 +166,7 @@ class PostgresConnection:
         # create schema public;
         cur = self.conn.cursor()
         stat = """
+              DROP TABLE IF EXISTS reconfigure CASCADE;
               DROP TABLE IF EXISTS context    CASCADE;
               DROP TABLE IF EXISTS resource    CASCADE;
               DROP TABLE IF EXISTS job    CASCADE;
@@ -178,7 +185,7 @@ class PostgresConnection:
         cur = self.conn.cursor()
         cur.execute("INSERT INTO context (name, description) VALUES (%s, %s) RETURNING cid;", [name, description])
         cid = singlevalue(cur)
-        self.add_log('context.create',{'cid': cid, 'name': name})
+        self.add_log('context.create', {'cid': cid, 'name': name})
         return self.get_context_byid(cid)
 
     def get_context(self, name):
@@ -203,7 +210,7 @@ class PostgresConnection:
         cur = self.conn.cursor()
         cur.execute("INSERT INTO job (cid, name, description, createtime, version_id) VALUES (%s, %s, %s, clock_timestamp(), 1001) RETURNING jid;", [context.cid, name, description])
         jid = singlevalue(cur)
-        self.add_log('job.create',{'jid': jid, 'cid': context.cid, 'name': name})
+        self.add_log('job.create', {'jid': jid, 'cid': context.cid, 'name': name})
         return self.get_job_byid(jid=jid)
 
     def add_activation(self, aid):
@@ -228,7 +235,7 @@ class PostgresConnection:
         oid = singlevalue(cur)
         return self.get_object(oid)
 
-    def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in= None, rsrc_out= None):
+    def set_activation_graph(self, activation, obj_in, obj_out, rsrc_in=None, rsrc_out=None):
         cur = self.conn.cursor()
         oid_in = [obj.oid for obj in obj_in]
         oid_out = [obj.oid for obj in obj_out]
@@ -253,9 +260,9 @@ class PostgresConnection:
             message = log[1]
             cur.execute("INSERT INTO log (time, event, message) VALUES (clock_timestamp(), %s, %s) RETURNING lid;", [log[0], json.dumps(message)])
             lid = singlevalue(cur)
-            message['event']= log[0]
+            message['event'] = log[0]
             cur.execute("NOTIFY new_log, %s;", [json.dumps(message)])
-        self.log_list  = []
+        self.log_list = []
         return lid
 
     def add_log(self, event, message, flush=False):
@@ -268,7 +275,7 @@ class PostgresConnection:
     def force_log_message(self):
         try:
             if self.last_error is not None:
-                print('Write Postgres error log message:\n'+json.dumps(self.last_error),file=sys.stderr)
+                print('Write Postgres error log message:\n' + json.dumps(self.last_error), file=sys.stderr)
                 self.add_log("ERROR", self.last_error)
                 self._flush_log()
                 self.commit()
@@ -281,7 +288,7 @@ class PostgresConnection:
     def get_context_byid(self, cid):
         return PgContext(self, cid)
 
-    def get_resource(self, label, create= False):
+    def get_resource(self, label, create=False):
         try:
             # incomplete
             res = PgResource(self, label)
@@ -354,6 +361,7 @@ class PgObject(PgDictWrapper):
         if res is not None:
             res = bytes(res).decode('utf-8')
         return res
+
 
 class PgActivity(PgDictWrapper):
 
@@ -441,9 +449,7 @@ class PgResource(PgDictWrapper):
 class PgJob(PgDictWrapper):
 
     def __init__(self, db, idvalue=None, name=None):
-        super(PgJob,  self).__init__(db,
-                'select * from job where ' +
-                (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
+        super(PgJob,  self).__init__(db, 'select * from job where ' + (('jid=' + str(idvalue)) if idvalue is not None else ('name=\''+name+'\'')) + ";")
         self.idvalue = self.jid
 
     def start(self):
@@ -484,7 +490,7 @@ class PgJob(PgDictWrapper):
         aid = singlevalue(cur)
         for trigger in kindtags_in:
             cur.execute("INSERT INTO activity_trigger (aid, kindtags) VALUES (%s, %s);", [aid, json.dumps(trigger)])
-        self._db.add_log('activity.create',{'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
+        self._db.add_log('activity.create', {'aid': aid, 'jid': self.jid, 'module': module, 'kindtags_in': kindtags_in, 'kindtags_out': kindtags_out})
         # do not forget to moify the cache
         return self._db.get_activity(aid)
 
@@ -505,6 +511,7 @@ def add_missing_tags(kindtags_seq):
     for kindtags in kindtags_seq:
         if 'tags' not in kindtags:
             kindtags['tags'] = []
+
 
 def opendb(configfile):
     """

@@ -127,7 +127,7 @@ class Scheduler:
             newobj = self.db.create_object(job, activation, obj.kindtags, obj.metadata, obj.str_data(), obj.bytes_data, obj.json_data, obj.sentence)
         else:
             raise Exception("unexpected persisten object")
-        self.db.add_log('object.create', {'hostid': self.hostid, 'oid': newobj.oid, 'kindtags': newobj.kindtags, 'jid': newobj.jid, 'avid':activation.avid}, flush=True)
+        self.db.add_log('object.create', {'hostid': self.hostid, 'oid': newobj.oid, 'kindtags': newobj.kindtags, 'jid': newobj.jid, 'avid': activation.avid}, flush=True)
         self.schedule_object(newobj, job.version_id)
         return newobj
 

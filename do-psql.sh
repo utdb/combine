@@ -1,7 +1,7 @@
 #!/bin/bash
 
 get_config() {
-    awk -F '=' "/$1/ {print \$2}" combine.local.cfg | tr -d ' '
+    awk -F '=' "/$1/ {print \$2}" master.local.cfg | tr -d ' '
 }
 
 HOST=$(get_config 'host')
