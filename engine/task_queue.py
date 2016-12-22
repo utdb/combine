@@ -104,14 +104,6 @@ class TaskQueue:
         except Exception as ex:
             handle_exception(ex)
 
-    def push_reconfigure(self):
-        try:
-            cur = self.conn.cursor()
-            cur.execute("INSERT INTO task (id, jid, aid, oid, slavetask,\
-                        version_id) VALUES (0, 0, 0, 0, FALSE, 0);")
-        except Exception as ex:
-            handle_exception(ex)
-
     def push_task(self, jid, aid, oid, slavetask, version_id):
         try:
             verbose(self.id + ": push_task", jid, aid, oid, slavetask)

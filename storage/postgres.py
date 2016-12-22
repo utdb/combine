@@ -46,11 +46,6 @@ class PostgresConnection:
         stat = """
               CREATE SEQUENCE combine_global_id;
 
-              CREATE TABLE reconfigure (
-                  id    BIGINT,
-                  json  TEXT
-              );
-
               CREATE TABLE context (
                   cid BIGINT PRIMARY KEY DEFAULT nextval('combine_global_id'),
                   name              VARCHAR(32) UNIQUE,
@@ -166,7 +161,6 @@ class PostgresConnection:
         # create schema public;
         cur = self.conn.cursor()
         stat = """
-              DROP TABLE IF EXISTS reconfigure CASCADE;
               DROP TABLE IF EXISTS context    CASCADE;
               DROP TABLE IF EXISTS resource    CASCADE;
               DROP TABLE IF EXISTS job    CASCADE;

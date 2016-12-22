@@ -141,7 +141,7 @@ def run_engine(configfile, scheduler, db):
             db.force_log_message()
             print('Postgres Error:\n'+str(pe), file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            # try to reconnect to the sertver
+            # try to reconnect to the server
             if backoff_time < MAXIMUM_BACKOFF:
                 time.sleep(backoff_time)
                 backoff_time = backoff_time*2
@@ -161,9 +161,6 @@ def run_engine(configfile, scheduler, db):
 
 
 def process_task(task, active, scheduler, db):
-    if task[0] == 0:
-        print("########### RECONFIGURE")
-        return
     aid = task[2]
     version_id = task[5]
     activity = active.get(aid)
