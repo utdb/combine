@@ -22,7 +22,7 @@ class AbfFetch(engine.Activity):
             }
         text = json.dumps(metadata, indent='   ') + '\n--\n' + result.text
         result = [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, text, None, metadata, obj.sentence), ]
-        if False:
+        if True:
             file = open("./cache/fetch"+str(obj.oid), "w")
             file.write(text)
             file.close()

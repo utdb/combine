@@ -3,36 +3,25 @@ import requests
 import json
 import engine
 
-base_url = 'http://webshop.abfbearings.com'
 
+btshop_base = 'https://www.btshop.nl'
 
-def abf_search_page(term, take=50, skip=0):
-    request_payload = {
-        'SearchModel': {
-            'Include': term,
-            'Paging': {
-                'Skip': skip,
-                'Take': take,
-                'Sort': 'Collection',
-                'SortDirection': 'ASC'
-            }
-        }
-    }
-    r = requests.post(base_url + '/catalog/Search', json=request_payload)
-    r.raise_for_status()
-    return r.json()
+def fetch(url, parameters={}, method='get', headers=None):
+        if method == 'get':
+                r = requests.get(url, params=parameters, headers=headers)
+        elif method == 'post':
+                r = requests.post(url, data=parameters, headers=headers)
 
+        r.raise_for_status()
+        return r
 
-def abf_build_detail_url(product):
-    url_key = product['ProductURLKey']
-    title = product['TitleFriendly']
-    for c in ",./%&*$#+":
-        title = title.replace(c, '-')
-    identifier = product['Id']
-    return base_url + "/{}/{}/{}".format(url_key, title, identifier)
+def get_product_urls(query):
+    r = fetch(btshop_base + '/nl/search/autocomplete/SearchBox', parameters={'term': query})
+    j = json.loads(r.content.decode())
 
+    yield from (btshop_base +  p['url'] for p in j['products'])
 
-class AbfGetDetailUrl(engine.Activity):
+class BtshopGetDetailUrl(engine.Activity):
 
     def setup(self, args):
         # create a set of generated url's by the activity
@@ -46,14 +35,9 @@ class AbfGetDetailUrl(engine.Activity):
         result = []
         rfc_fields = obj.json_data
         rfc_item = rfc_fields[2]
-        query_page = abf_search_page(rfc_item)
-        for p in query_page['Products']:
-            bag = dict()
-            for t in p:
-                # Assuming only a single value per key:
-                bag[t['Key']] = t['Value']
-            detail_url = abf_build_detail_url(bag)
-            # print("DETAIL_URL: "+detail_url)
+        print('RFC_ITEM'+str(rfc_item))
+        for detail_url in get_product_urls(rfc_item):
+            print("DETAIL_URL: "+detail_url)
             if detail_url not in self.url_dict:
                 newobj = engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None, None, obj.sentence)
                 self.url_dict[detail_url] = newobj.delayed_oid_container()
@@ -66,11 +50,9 @@ class AbfGetDetailUrl(engine.Activity):
                     # otherwise the duplicate is duplicate within provenance
                     newobj = self.get_object(delayed_oid)
                     result.append(newobj)
-            # TODO: implement minimality testing through env
-            if True:
+            if False:
                 break
         return result
 
-
 def get_handler(context):
-    return AbfGetDetailUrl(context)
+    return BtshopGetDetailUrl(context)
