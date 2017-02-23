@@ -1,10 +1,8 @@
+import modules.judged
 from judged import Constant, Literal, Predicate, Clause
 from judged.extensions import Extension, ExtensionError
 
 ext = Extension(__name__)
-
-global_db = None
-
 
 @ext.predicate('say', 2)
 def say(pred, a, b):
@@ -24,14 +22,20 @@ def complex(pred, a, *, context=None):
     yield Clause(Literal(pred, [Constant.number(1337)]))
 
 
+@ext.predicate('ok', 2, needs_context=True)
+def ok(pred, oid, kind,  *, context=None):
+    jdh = context.handler
+    for row in jdh.pg_table(
+            ['oid', 'kindtags->\'kind\''], [oid, kind], 'object'):
+        yield Clause(Literal(pred, [Constant.number(row[0]),Constant.string(str(row[1]))]))
+
+
 @ext.predicate('log', 2, needs_context=True)
 def log(pred, time, event,  *, context=None):
-    if isinstance(time,Constant):
-        pass
-    if isinstance(event,Constant):
-        pass
-    for m in global_db.log_messages():
-        yield Clause(Literal(pred, [Constant.string(str(m[1])),Constant.string(str(m[2]))]))
+    jdh = context.handler
+    for row in jdh.pg_table(
+            ['time', 'event'], [time, event], 'log'):
+        yield Clause(Literal(pred, [Constant.string(row[0]),Constant.string(str(row[1]))]))
 
 
 @ext.setup

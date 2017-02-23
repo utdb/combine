@@ -11,9 +11,9 @@ from engine import Engine
 
 JOBNAME = 'bearings-crawl'
 
-# JSON_CONFIG = './input/judged.json'
-#JSON_CONFIG = './input/abf_bearing_crawl.json'
-JSON_CONFIG = './input/btshop_bearing_crawl.json'
+JSON_CONFIG = './input/judged.json'
+# JSON_CONFIG = './input/abf_bearing_crawl.json'
+# JSON_CONFIG = './input/btshop_bearing_crawl.json'
 
 
 def open_bearings_scenario(configfile):
