@@ -39,6 +39,7 @@ class Activity:
         self.db = context['db']
         self.job = context['job']
         self.db_activity = context['db_activity']
+        self.sentence_id = self.db_activity.aid
         self.kindtags_out = self.db_activity.kindtags_out
         self.kindtags_default = self.kindtags_out[0]
         self.module = self.db_activity.module
@@ -102,6 +103,12 @@ class Activity:
                          + '\n' + traceback.format_exc()
             db.last_error = {'module': self.module, 'id': self.scheduler.role, 'error': error_txt}
             raise
+
+def add2sentence(s, t, v):
+    if s is None:
+        return ''+t+'='+str(v)
+    else:
+        return s+' and '+t+'='+str(v)
 
 
 def create_activity(db, scheduler, db_activity):

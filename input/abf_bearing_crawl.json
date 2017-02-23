@@ -1,0 +1,115 @@
+[
+  {
+    "create_context": {
+      "name": "bearings-crawl",
+      "description": "Bearing Crawl Context"
+    }
+  },
+  {
+    "create_job": {
+      "context": "bearings-crawl",
+      "name": "bearings-crawl",
+      "description": "Bearing Crawl Context",
+      "activities": [
+        {
+          "activity": {
+            "module": "modules.seed_json",
+            "args": "--kind=rfc_entity,--tag=",
+            "kindtags_in": [{ "kind": "rfc_entity_seed" }],
+            "kindtags_out": [{ "kind": "rfc_entity" }]
+          }
+        },
+
+
+        {
+          "activity": {
+            "module": "modules.abf_detail_url",
+            "args": "",
+            "kindtags_in": [{ "kind": "rfc_entity" }],
+            "kindtags_out": [{ "kind": "abf_detail_url" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.fetch",
+            "args": "",
+            "kindtags_in": [{ "kind": "abf_detail_url" }],
+            "kindtags_out": [{ "kind": "abf_detail_page" }]
+          }
+        },
+
+
+        {
+          "activity": {
+            "module": "modules.btshop_detail_url",
+            "args": "",
+            "kindtags_in": [{ "kind": "rfc_entity" }],
+            "kindtags_out": [{ "kind": "btshop_detail_url" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.fetch",
+            "args": "",
+            "kindtags_in": [{ "kind": "btshop_detail_url" }],
+            "kindtags_out": [{ "kind": "btshop_detail_page" }]
+          }
+        },
+
+
+        {
+          "activity": {
+            "module": "modules.abf_extract_fields",
+            "args": "",
+            "kindtags_in": [
+                { "kind": "extract_notify" }, { "kind": "abf_detail_page" }, { "kind": "btshop_detail_page" }],
+            "kindtags_out": [{ "kind": "abf_entity" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.simple_extractor",
+            "args": "--simple=Artikelnummer,--sibling=Breedte|diameter",
+            "kindtags_in": [
+                { "kind": "extract_notify" }, { "kind": "abf_detail_page" }, { "kind": "btshop_detail_page" }],
+            "kindtags_out": [{ "kind": "btshop_entity" }]
+          }
+        },
+
+        {
+          "activity": {
+            "module": "modules.extract_analyze",
+            "args": "",
+            "kindtags_in": [{ "kind": "abf_entity" }, { "kind": "abf_entity" }, { "kind": "btshop_entity" }],
+            "kindtags_out": [{ "kind": "extract_notify" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.bearings-collector",
+            "args": "",
+            "kindtags_in": [{ "kind": "btshop_entity" }, { "kind": "abf_entity" }, { "kind": "btshop_entity" }],
+            "kindtags_out": [{ "kind": "UNKNOWN" }]
+          }
+        }
+     ],
+      "seed_data": {
+        "objects": [
+          {
+            "object": {
+              "kindtags": { "kind": "rfc_entity_seed", "tags": [] },
+              "metadata": {
+                "Content-Type": "text\/html",
+                "encoding": "utf-8"
+              },
+              "str_data": ".\/data\/rfc.in.test.json",
+              "bytes_data": null,
+              "json_data": null,
+              "sentence": null
+            }
+          }
+       ]
+      }
+    }
+  }
+]

@@ -11,6 +11,10 @@ from engine import Engine
 
 JOBNAME = 'bearings-crawl'
 
+# JSON_CONFIG = './input/judged.json'
+#JSON_CONFIG = './input/abf_bearing_crawl.json'
+JSON_CONFIG = './input/btshop_bearing_crawl.json'
+
 
 def open_bearings_scenario(configfile):
     logging.info("Open new Bearings Schedule")
@@ -51,7 +55,7 @@ if __name__ == '__main__':
         combine_engine.stop()
     else:
         configurator = Configurator(configfile, initialize=True)
-        configurator.load_configuration('./bearing_crawl.json')
+        configurator.load_configuration(JSON_CONFIG)
         configurator.close()
         #
         combine_engine = Engine(configfile)

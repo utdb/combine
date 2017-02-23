@@ -33,18 +33,19 @@ class BtshopGetDetailUrl(engine.Activity):
     def handle_simple(self, obj):
         # activation.input(obj)
         result = []
-        rfc_fields = obj.json_data
-        rfc_item = rfc_fields[2]
-        print('RFC_ITEM'+str(rfc_item))
+        json_data = obj.json_data;
+        json_data['detail_url_id'] = self.sentence_id
+        rfc_item = json_data['seed'][2]
+        # print('RFC_ITEM'+str(rfc_item))
         for detail_url in get_product_urls(rfc_item):
-            print("DETAIL_URL: "+detail_url)
+            # print("DETAIL_URL: "+detail_url)
             if detail_url not in self.url_dict:
-                newobj = engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None, None, obj.sentence)
+                newobj = engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, detail_url, None, json_data, obj.sentence)
                 self.url_dict[detail_url] = newobj.delayed_oid_container()
                 result.append(newobj)
             else:
                 # the activation shares its output with the first
-                print("DUPLICATE_URL: "+detail_url)
+                # print("DUPLICATE_URL: "+detail_url)
                 delayed_oid = self.url_dict[detail_url][0]
                 if delayed_oid > 0:
                     # otherwise the duplicate is duplicate within provenance

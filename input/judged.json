@@ -1,0 +1,42 @@
+[
+  {
+    "create_context": {
+      "name": "judged",
+      "description": "JudgeD Context"
+    }
+  },
+  {
+    "create_job": {
+      "context": "judged",
+      "name": "judged-job",
+      "description": "JudgeD Job",
+      "activities": [
+        {
+          "activity": {
+            "module": "modules.judged.judged_example",
+            "args": "",
+            "kindtags_in": [{ "kind": "judged_seed" }],
+            "kindtags_out": [{ "kind": "NONE" }]
+          }
+        }
+     ],
+      "seed_data": {
+        "objects": [
+          {
+            "object": {
+              "kindtags": { "kind": "judged_seed", "tags": [] },
+              "metadata": {
+                "Content-Type": "text\/html",
+                "encoding": "utf-8"
+              },
+              "str_data": "Hello Judge",
+              "bytes_data": null,
+              "json_data": null,
+              "sentence": null
+            }
+          }
+       ]
+      }
+    }
+  }
+]

@@ -246,6 +246,13 @@ class PostgresConnection:
         #
         cur.execute("UPDATE activation SET oid_in=%s, oid_out=%s, rid_in=%s, rid_out=%s WHERE avid=%s;", [oid_in, oid_out, rid_in, rid_out, activation.avid])
 
+    def log_messages(self):
+        cur = self.conn.cursor()
+        cur.execute('SELECT lid, time, event, message  FROM log;')
+        rows = cur.fetchall()
+        for row in rows:
+            yield [row[0], row[1], row[2], row[3]]
+
     # add a list of log messages [event,message], returns 'lid' of last message
     def _flush_log(self):
         lid = 0

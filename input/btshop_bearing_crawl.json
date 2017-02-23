@@ -21,34 +21,27 @@
         },
         {
           "activity": {
-            "module": "modules.abf_detail_url",
+            "module": "modules.btshop_detail_url",
             "args": "",
             "kindtags_in": [{ "kind": "rfc_entity" }],
-            "kindtags_out": [{ "kind": "abf_detail_url" }]
+            "kindtags_out": [{ "kind": "btshop_detail_url" }]
           }
         },
         {
           "activity": {
-            "module": "modules.abf_fetch",
+            "module": "modules.fetch",
             "args": "",
-            "kindtags_in": [{ "kind": "abf_detail_url" }],
-            "kindtags_out": [{ "kind": "abf_detail_page" }]
+            "kindtags_in": [{ "kind": "btshop_detail_url" }],
+            "kindtags_out": [{ "kind": "btshop_detail_page" }]
           }
         },
         {
           "activity": {
-            "module": "modules.abf_extract_fields",
-            "args": "",
-            "kindtags_in": [{ "kind": "abf_detail_page" }],
-            "kindtags_out": [{ "kind": "abf_entity" }]
-          }
-        },
-        {
-          "activity": {
-            "module": "modules.rfc-x-abf-cmp",
-            "args": "",
-            "kindtags_in": [{ "kind": "rfc_entity" }, { "kind": "abf_entity" }],
-            "kindtags_out": [{ "kind": "UNKNOWN" }]
+            "module": "modules.simple_extractor",
+            "args": "--simple=Artikelnummer,--sibling=Breedte|diameter",
+            "kindtags_in": [
+                { "kind": "extract_notify" }, { "kind": "btshop_detail_page" }],
+            "kindtags_out": [{ "kind": "btshop_entity" }]
           }
         }
      ],

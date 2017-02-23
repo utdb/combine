@@ -1,5 +1,7 @@
 import logging
 import json
+from collections import defaultdict
+from util.flowcontrol import FlowControl
 import engine
 from pathlib import Path
 from lxml import etree
@@ -44,15 +46,29 @@ def abf_extract_body_fields(html_body):
 
 class AbfExtractFields(engine.Activity):
 
+    def setup(self, args):
+        self.flowcontrol = FlowControl('ABF', self.sentence_id)
+
     def handle_simple(self, obj):
-        html_header = obj.json_data
-        html_body = obj.str_data()
-        fields = {}
-        for field in abf_extract_body_fields(html_body):
-            fields[field[0]] = field[1]
-        fields['url'] = html_header.get("url")
-        # print("EXTRACTING:\n"+json.dumps(fields, indent='   '))
-        return [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", None, fields, obj.sentence), ]
+        if self.flowcontrol.is_active(obj):
+            html_header = obj.json_data
+            html_body = obj.str_data()
+            extracted = {}
+            try:
+                for field in abf_extract_body_fields(html_body):
+                    extracted[field[0]] = field[1]
+            except:
+                pass
+            jd = obj.json_data
+            jd['url'] = html_header.get("url")
+            jd['extraction_id'] = self.sentence_id
+            jd['extraction_module'] = 'abf'
+            jd['extraction_kindtags'] = obj.kindtags
+            jd['extraction_fields'] = extracted
+            # print("ABF-EXTRACTING:\n"+json.dumps(jd, indent='   '))
+            return [engine.LwObject(self.kindtags_default, {'Content-Type': 'text/html', 'encoding': 'utf-8'}, "", None, jd, obj.sentence), ]
+        else:
+            return []
 
 
 def get_handler(context):

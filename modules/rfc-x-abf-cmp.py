@@ -30,16 +30,16 @@ class RfcXAbfCompare(engine.Activity):
         oid = obj.oid
         kindtags = obj.kindtags
         kind = kindtags['kind']
-        fields = obj.json_data
         # TODO: objects are not duplicate anymore
-        # print("INCOMING: ", obj.kindtags())
         if kind == "rfc_entity":
+            fields = obj.json_data
             if oid not in self.rsrc.rfc:
                 self.rsrc.rfc[oid] = fields
                 if do_compare:
                     for abf_oid in self.rsrc.abf:
                         self.compare(oid, fields, abf_oid, self.rsrc.abf[abf_oid])
         elif kind == "abf_entity":
+            fields = obj.json_data['extraction_fields']
             if oid not in self.rsrc.abf:
                 self.rsrc.abf[oid] = fields
                 if do_compare:
