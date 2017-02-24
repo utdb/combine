@@ -14,7 +14,7 @@ class JudgeDhandler():
         self.db = db
         self.current_context = judged.context.ExactContext()
         self.action_handlers = {}
-        self.current_context.handler = self
+        self.current_context.jd_handler = self
 
     def handle(self, s):
         """
@@ -45,6 +45,7 @@ class JudgeDhandler():
                 cond = a + '=' + str(v)
                 c_list = ' WHERE '+cond if len(c_list)==0 else c_list+' AND '+cond
         sql_stat = 'SELECT ' + a_list + ' FROM '+ t_name + c_list + ';'
+        sql_stat = sql_stat.translate(str.maketrans("\"", "\'"))
         print(sql_stat)
         cur.execute(sql_stat)
         rows = cur.fetchall()
