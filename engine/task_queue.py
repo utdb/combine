@@ -55,6 +55,7 @@ class TaskQueue:
 
     def create_tables(self):
         try:
+            verbose(self.id + ": create tables")
             cur = self.conn.cursor()
             stat = """
                    CREATE TABLE task (id BIGSERIAL, jid BIGINT, aid BIGINT,
@@ -71,6 +72,7 @@ class TaskQueue:
 
     def drop_tables(self):
         try:
+            verbose(self.id + ": drop tables")
             cur = self.conn.cursor()
             stat = """
                   DROP TABLE IF EXISTS task CASCADE;
@@ -153,9 +155,11 @@ class TaskQueue:
 
 def singlerow(cur):
     if cur.rowcount == 0:
+        verbose("pop_task: "+"None")
         return None
     else:
         rows = cur.fetchall()
+        verbose("pop_task: "+str(rows))
         return rows[0]
 
 

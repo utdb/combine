@@ -24,8 +24,10 @@ class PostgresConnection:
     def rollback(self):
         try:
             self.conn.rollback()
+            self.conn = psycopg2.connect(**self.db_config)
         except:
             # ignore
+            print("ERROR DURING ROLLBACK")
             self.conn = None
 
     def commit(self):
@@ -117,6 +119,10 @@ class PostgresConnection:
                   event     TEXT,
                   message   JSONB
               );
+              -- CREATE TABLE pagecache (
+                  -- url       TEXT PRIMARY KEY,
+                  -- content   TEXT
+              -- );
               CREATE VIEW active_job AS
                   SELECT * from job
                   WHERE (stoptime IS NULL) AND NOT (starttime IS NULL);
@@ -171,6 +177,7 @@ class PostgresConnection:
               DROP TABLE IF EXISTS activity_trigger    CASCADE;
               DROP TABLE IF EXISTS activation    CASCADE;
               DROP TABLE IF EXISTS log        CASCADE;
+              -- DROP TABLE IF EXISTS pagecache        CASCADE;
               DROP SEQUENCE IF EXISTS combine_global_id CASCADE;
            """
         cur.execute(stat)
@@ -193,6 +200,18 @@ class PostgresConnection:
         cur.execute("SELECT jid from job WHERE name = %s;", [name, ])
         jid = singlevalue(cur)
         return self.get_job_byid(jid)
+
+    def get_page(self, url):
+        cur = self.conn.cursor()
+        cur.execute("SELECT content from pagecache WHERE url = %s;", [url, ])
+        if cur.rowcount == 1:
+            return singlevalue(cur)
+        else:
+            return None
+
+    def put_page(self, url, content):
+        cur = self.conn.cursor()
+        cur.execute("INSERT INTO pagecache (url, content) VALUES (%s, %s);", [url,content])
 
     def add_resource(self, label):
         cur = self.conn.cursor()
@@ -503,7 +522,7 @@ class PgJob(PgDictWrapper):
             else:
                 newobj = obj
                 print("add_seed_data: Unexpected Object: "+str(obj))
-        seed.append(newobj.oid)
+            seed.append(newobj.oid)
         cur = self._db.conn.cursor()
         cur.execute("UPDATE job SET seed=%s WHERE jid=%s ;", [seed, self.jid])
 

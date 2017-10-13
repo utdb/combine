@@ -22,17 +22,12 @@ class JudgeDhandler():
         action will be furnished with context information based on the context
         information of the parsed action.
         """
-        lastres = None
-        reader = io.StringIO(s)
-        for action in parser.parse(reader):
-            try:
-                # handler = self.action_handlers.get(type(action),default_handler)
-                # lastres = handler(action)
-                lastres = action.perform(self.current_context)
-            except judged.JudgedError as e:
-                e.context = action.source
-                raise e
-        return lastres
+        action = parser.parse(s)
+        try:
+            return action.perform(self.current_context)
+        except judged.JudgedError as e:
+            e.context = action.source
+            raise e
 
     def pg_table(self, t_attr, t_val, t_name):
         cur = self.db.conn.cursor()
@@ -42,6 +37,7 @@ class JudgeDhandler():
             a_list = a if len(a_list)==0 else a_list + ', ' + a
             if isinstance(v,Constant):
                 # v = str(v).translate(str.maketrans("\"", "\'"))
+                # use v.kind and v.name en v.data
                 cond = a + '=' + str(v)
                 c_list = ' WHERE '+cond if len(c_list)==0 else c_list+' AND '+cond
         sql_stat = 'SELECT ' + a_list + ' FROM '+ t_name + c_list + ';'

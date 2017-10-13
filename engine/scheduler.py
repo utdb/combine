@@ -91,7 +91,7 @@ class Scheduler:
             for oid in job.seed:
                 self.db.add_log('object.seed', {'hostid': self.hostid, 'jid': job.jid, 'oid': oid})
                 self.schedule_object(self.db.get_object(oid), job.version_id)
-                job.set_initialized()
+            job.set_initialized()
         else:
             # the job is initialized, check for uninitialized activities
             for activity in job.activities():

@@ -1,0 +1,121 @@
+[
+  {
+    "create_context": {
+      "name": "book-crawl",
+      "description": "Book Jundt Crawl Context"
+    }
+  },
+  {
+    "create_job": {
+      "context": "book-crawl",
+      "name": "book-crawl",
+      "description": "Book Jundt Crawl Context",
+      "activities": [
+        {
+          "activity": {
+            "module": "modules.book_top1000_training",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_training" }],
+            "kindtags_out": [{ "kind": "book_top1000_xpaths" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.book_top1000_generator",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_xpaths" },{ "kind": "book_top1000_seed" }],
+            "kindtags_out": [{ "kind": "book_top1000_url" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.book_top1000_seed",
+            "args": "",
+            "kindtags_in": [{ "kind": "XXXbook_top1000_seed" }],
+            "kindtags_out": [{ "kind": "book_top1000_url" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.fetch",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_url" }],
+            "kindtags_out": [{ "kind": "book_top1000_page" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.book_top1000_extract",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_page" }],
+            "kindtags_out": [{ "kind": "book_top1000_detail_url" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.fetch",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_detail_url" }],
+            "kindtags_out": [{ "kind": "book_top1000_detail_page" }]
+          }
+        },
+        {
+          "activity": {
+            "module": "modules.book_top1000_detail_page",
+            "args": "",
+            "kindtags_in": [{ "kind": "book_top1000_detail_page" }],
+            "kindtags_out": [{ "kind": "book_top1000_detail_extract" }]
+          }
+        }
+     ],
+      "seed_data": {
+        "objects": [
+          {
+            "object": {
+              "kindtags": { "kind": "book_top1000_seed", "tags": [] },
+              "metadata": {
+                "Content-Type": "text\/html",
+                "encoding": "utf-8"
+              },
+              "str_data": "",
+              "bytes_data": null,
+              "json_data": {
+                        "url": "http://www.librarything.com/bookaward/1001+Books+You+Must+Read+Before+You+Die",
+                        "xpath": "//table[@class='worksinseries']/descendant::tr/descendant::a[1]/@href"
+                        },
+              "sentence": null
+            }
+          },
+          {
+            "object": {
+              "kindtags": { "kind": "book_top1000_training", "tags": [] },
+              "metadata": {
+                "Content-Type": "text\/html",
+                "encoding": "utf-8"
+              },
+              "str_data": "",
+              "bytes_data": null,
+              "json_data": {
+                  "tags" : ["title", "author"],
+                  "examples" : [ 
+                      {"url":"http://www.librarything.com/work/28771",
+                       "title":"Amerika",
+                       "author":"Franz Kafka"},
+                      {"url":"http://www.librarything.com/work/65541",
+                       "title":"Amsterdam",
+                       "author":"Ian McEwan"},
+                      {"url":"http://www.librarything.com/work/1477",
+                       "title":"Animal Farm",
+                       "author":"George Orwell"},
+                      {"url":"http://www.librarything.com/work/43160",
+                       "title":"A Bend in the River",
+                       "author":"V. S. Naipaul"}
+                  ]},
+              "sentence": null
+            }
+          }
+       ]
+      }
+    }
+  }
+]
